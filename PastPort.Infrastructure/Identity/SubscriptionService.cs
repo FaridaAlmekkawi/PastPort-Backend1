@@ -52,7 +52,7 @@ public class SubscriptionService(
                 PayerEmail = paymentRequest.PayerEmail,
                 PayerName = paymentRequest.PayerName,
                 Amount = price,
-                Status = (Domain.Enums.PaymentStatus)DTOs.Response.PaymentStatus.Pending
+                Status = Domain.Enums.PaymentStatus.Pending // Direct assignment, no cast
             };
 
             await _paymentRepository.AddAsync(payment);
