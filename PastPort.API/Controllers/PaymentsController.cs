@@ -1,4 +1,16 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿// ✅ FIXED: PaymentsController.cs
+// المشكلة:
+// بعد ما عدّلنا ISubscriptionService، الـ methods دلوقتي بترجع:
+//   - InitiatePaymentAsync  → PayPalPaymentResponseDto  (مش PaymentResponseDto)
+//   - CompletePaymentAsync  → ApiResponseDto             (مش PaymentResponseDto)
+//
+// الكود القديم كان بيعمل:
+//   if (result is not PaymentResponseDto paymentResponse || !paymentResponse.Success)
+// ده كان بيرمي CS8121 لأن الـ types مش متوافقة.
+//
+// الحل: صلحنا الـ type check في كل method عشان يتطابق مع الـ return type الصح.
+
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PastPort.Application.DTOs.Request;
 using PastPort.Application.DTOs.Response;
@@ -6,7 +18,6 @@ using PastPort.Application.Interfaces;
 using PastPort.Domain.Enums;
 using PastPort.Domain.Interfaces;
 using System.Security.Claims;
-
 
 namespace PastPort.API.Controllers;
 
@@ -32,14 +43,14 @@ public class PaymentsController : ControllerBase
         _logger = logger;
     }
 
-    /// <summary>  
-    /// بدء عملية دفع جديدة  
-    /// </summary>  
+    /// <summary>
+    /// بدء عملية دفع جديدة
+    /// </summary>
     [HttpPost("initiate")]
     public async Task<IActionResult> InitiatePayment(
-       [FromBody] PayPalPaymentRequestDto request,
-       [FromQuery] SubscriptionPlan plan,
-       [FromQuery] int durationInMonths = 1)
+        [FromBody] PayPalPaymentRequestDto request,
+        [FromQuery] SubscriptionPlan plan,
+        [FromQuery] int durationInMonths = 1)
     {
         try
         {
@@ -53,31 +64,37 @@ public class PaymentsController : ControllerBase
                 DurationInMonths = durationInMonths
             };
 
-            // استدعاء الـ Service  
-            var result = await ((ISubscriptionService)_subscriptionService)
-                .InitiatePaymentAsync(userId, subscriptionRequest, request);
+            // ✅ FIXED: InitiatePaymentAsync دلوقتي بترجع PayPalPaymentResponseDto مباشرة
+            // الكود القديم كان بيعمل:
+            //   var result = await _subscriptionService.InitiatePaymentAsync(...);
+            //   if (result is not PaymentResponseDto ...)  ← CS8121 لأن result مش PaymentResponseDto
+            //
+            // دلوقتي بنتعامل مع PayPalPaymentResponseDto مباشرة بدون أي casting
+            var result = await _subscriptionService.InitiatePaymentAsync(
+                userId,
+                subscriptionRequest,
+                request);
 
-            // Fix: Ensure the result is cast to the expected type or check its structure  
-            if (result is not PaymentResponseDto paymentResponse || !paymentResponse.Success)
+            if (!result.Success)
                 return BadRequest(result);
 
             return Ok(result);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error initiating payment");
+            _logger.LogError(ex, "Error initiating payment for user");
             return BadRequest(new { error = ex.Message });
         }
     }
 
-    /// <summary>  
-    /// إكمال الدفع بعد الموافقة  
-    /// </summary>  
+    /// <summary>
+    /// إكمال الدفع بعد الموافقة
+    /// </summary>
     [HttpPost("complete")]
     public async Task<IActionResult> CompletePayment(
-       [FromBody] PayPalApprovalDto request,
-       [FromQuery] SubscriptionPlan plan,
-       [FromQuery] int durationInMonths = 1)
+        [FromBody] PayPalApprovalDto request,
+        [FromQuery] SubscriptionPlan plan,
+        [FromQuery] int durationInMonths = 1)
     {
         try
         {
@@ -91,19 +108,25 @@ public class PaymentsController : ControllerBase
                 DurationInMonths = durationInMonths
             };
 
-            var result = await _subscriptionService
-            .CompletePaymentAsync(userId, request.OrderId, subscriptionRequest);
+            // ✅ FIXED: CompletePaymentAsync دلوقتي بترجع ApiResponseDto مباشرة
+            // الكود القديم كان بيعمل:
+            //   var result = await _subscriptionService.CompletePaymentAsync(...);
+            //   if (result is not PaymentResponseDto ...)  ← CS8121 لأن result مش PaymentResponseDto
+            //
+            // دلوقتي بنتعامل مع ApiResponseDto مباشرة بدون أي casting
+            var result = await _subscriptionService.CompletePaymentAsync(
+                userId,
+                request.OrderId,
+                subscriptionRequest);
 
-            // Fix: Ensure the result is cast to the expected type or check its structure  
-            if (result is not PaymentResponseDto paymentResponse || !paymentResponse.Success)
+            if (!result.Success)
                 return BadRequest(result);
 
             return Ok(result);
-
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error completing payment");
+            _logger.LogError(ex, "Error completing payment for user");
             return BadRequest(new { error = ex.Message });
         }
     }
@@ -121,7 +144,6 @@ public class PaymentsController : ControllerBase
                 return Unauthorized();
 
             var payments = await _paymentRepository.GetUserPaymentsAsync(userId);
-
             return Ok(new { data = payments, message = "Payment history retrieved" });
         }
         catch (Exception ex)
