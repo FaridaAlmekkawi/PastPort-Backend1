@@ -1,4 +1,12 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿// ✅ FIXED: UnityAssetsController.cs
+// المشاكل الأصلية:
+// 1. SearchAsset كانت بتعمل GetAllAsync() وتحمّل كل الـ assets في الـ memory
+//    وبعدين تعمل FirstOrDefault في الـ C# — لو عندك 10,000 asset هيتحملوا كلهم!
+//    الحل: استخدمنا GetAssetByNameAsync اللي بتعمل WHERE في الـ database.
+// 2. DownloadAsset كانت [AllowAnonymous] — أي حد يعرف الـ assetId يقدر يحمّل أي ملف.
+//    الحل: أضفنا [Authorize] عليه.
+
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PastPort.Application.Interfaces;
 using PastPort.Domain.Interfaces;
@@ -28,7 +36,7 @@ public class UnityAssetsController : ControllerBase
     /// Unity استخدم: GET /api/unityassets/search?name=chair_01
     /// </summary>
     [HttpGet("search")]
-    [AllowAnonymous]
+    [AllowAnonymous] // Unity محتاج يبحث من غير token — مقبول هنا
     public async Task<IActionResult> SearchAsset([FromQuery] string name)
     {
         try
@@ -36,10 +44,13 @@ public class UnityAssetsController : ControllerBase
             if (string.IsNullOrEmpty(name))
                 return BadRequest(new { error = "Asset name is required" });
 
-            // البحث عن الـ Asset
-            var assets = await _assetRepository.GetAllAsync();
-            var asset = assets.FirstOrDefault(a =>
-                a.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+            // ✅ FIXED: الكود القديم كان:
+            //   var assets = await _assetRepository.GetAllAsync();  ← بيحمّل كل الـ assets في الـ memory
+            //   var asset = assets.FirstOrDefault(a => a.Name.Equals(...)); ← بيفلتر في C# مش في DB
+            //
+            // لو عندك 10,000 asset، كلهم بيتحملوا في الـ RAM عشان تجيب واحد بس!
+            // دلوقتي: بنبعت الـ filter للـ database مباشرة بـ WHERE clause
+            var asset = await _assetRepository.GetAssetByNameAsync(name);
 
             if (asset == null)
                 return NotFound(new { error = "Asset not found" });
@@ -62,7 +73,7 @@ public class UnityAssetsController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error searching asset");
+            _logger.LogError(ex, "Error searching asset with name {Name}", name);
             return BadRequest(new { error = ex.Message });
         }
     }
@@ -72,7 +83,7 @@ public class UnityAssetsController : ControllerBase
     /// Unity استخدم: GET /api/unityassets/scene/sceneId
     /// </summary>
     [HttpGet("scene/{sceneId}")]
-    [AllowAnonymous]
+    [AllowAnonymous] // Unity محتاج يجيب assets الـ scene من غير token
     public async Task<IActionResult> GetSceneAssets(Guid sceneId)
     {
         try
@@ -97,7 +108,7 @@ public class UnityAssetsController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting scene assets");
+            _logger.LogError(ex, "Error getting scene assets for {SceneId}", sceneId);
             return BadRequest(new { error = ex.Message });
         }
     }
@@ -106,8 +117,13 @@ public class UnityAssetsController : ControllerBase
     /// تحميل Asset
     /// Unity استخدم: GET /api/unityassets/download/assetId
     /// </summary>
+    // ✅ FIXED: أضفنا [Authorize] بدل [AllowAnonymous]
+    // الكود القديم كان بيسمح لأي حد يعرف الـ assetId يحمّل أي ملف بدون أي auth.
+    // دلوقتي محتاج JWT token صالح عشان تحمّل.
+    // ملاحظة: لو Unity client بيحتاج download بدون user token،
+    // استخدم API key authentication بدل JWT.
     [HttpGet("download/{assetId}")]
-    [AllowAnonymous]
+    [Authorize]
     public async Task<IActionResult> DownloadAsset(Guid assetId)
     {
         try
@@ -128,7 +144,7 @@ public class UnityAssetsController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error downloading asset");
+            _logger.LogError(ex, "Error downloading asset {AssetId}", assetId);
             return BadRequest(new { error = ex.Message });
         }
     }
@@ -138,7 +154,7 @@ public class UnityAssetsController : ControllerBase
     /// Unity استخدم: POST /api/unityassets/verify
     /// </summary>
     [HttpPost("verify")]
-    [AllowAnonymous]
+    [AllowAnonymous] // Unity محتاج يتحقق من الـ assets قبل ما يبدأ الـ session
     public async Task<IActionResult> VerifyAsset([FromBody] VerifyAssetRequest request)
     {
         try
@@ -156,7 +172,7 @@ public class UnityAssetsController : ControllerBase
                 data = new
                 {
                     exists = fileExists,
-                    hashMatches = hashMatches,
+                    hashMatches,
                     needsDownload = !fileExists || !hashMatches,
                     asset = new
                     {
@@ -171,13 +187,14 @@ public class UnityAssetsController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error verifying asset");
+            _logger.LogError(ex, "Error verifying asset {AssetId}", request.AssetId);
             return BadRequest(new { error = ex.Message });
         }
     }
 
-    // Helper
-    private string GetContentType(string fileName)
+    // ==================== Private Helper ====================
+
+    private static string GetContentType(string fileName)
     {
         var extension = Path.GetExtension(fileName).ToLowerInvariant();
         return extension switch
