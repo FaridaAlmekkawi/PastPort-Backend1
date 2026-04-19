@@ -9,9 +9,9 @@ namespace PastPort.Domain.Enums
     public enum InvoiceStatus
     {
         Draft = 0,
-        Open = 1,
+        Issued = 1,
         Paid = 2,
         Void = 3,
-        Uncollectible = 4
+        Overdue = 4
     }
 }
