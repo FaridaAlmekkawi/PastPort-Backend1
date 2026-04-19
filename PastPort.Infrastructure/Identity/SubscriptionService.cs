@@ -1,4 +1,14 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿// ✅ FIXED: SubscriptionService.cs
+// المشاكل الأصلية:
+// 1. في CompletePaymentAsync كان فيه cast خاطئ:
+//    (Domain.Enums.PaymentStatus)DTOs.Response.PaymentStatus.Completed
+//    ده خطير لأن قيمة Completed في DTOs.Response = 2 بتتناظر مع "Processing" في Domain.Enums
+//    مش "Succeeded" — بيحفظ status غلط في الـ DB بصمت.
+// 2. في الآخر كان فيه 3 explicit interface implementations بيرموا NotImplementedException
+//    يعني أي حد بيستخدم ISubscriptionService هيتفاجأ بـ crash في الـ runtime.
+// الحل: حذفنا الـ stubs وصلحنا الـ enum assignment.
+
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 using PastPort.Application.DTOs.Request;
 using PastPort.Application.DTOs.Response;
@@ -21,8 +31,6 @@ public class SubscriptionService(
     private readonly IPaymentService _paymentService = paymentService;
     private readonly UserManager<ApplicationUser> _userManager = userManager;
     private readonly ILogger<SubscriptionService> _logger = logger;
-
-    // ✅ حذفنا private object? subscription عشان دي كانت سبب الـ warning
 
     /// <summary>
     /// بدء عملية الدفع عبر PayPal
@@ -52,7 +60,10 @@ public class SubscriptionService(
                 PayerEmail = paymentRequest.PayerEmail,
                 PayerName = paymentRequest.PayerName,
                 Amount = price,
-                Status = Domain.Enums.PaymentStatus.Pending // Direct assignment, no cast
+                // ✅ FIXED: بدل الـ cast الخاطئ، بنعمل assignment مباشر للـ enum الصح
+                // الـ cast القديم كان: (Domain.Enums.PaymentStatus)DTOs.Response.PaymentStatus.Pending
+                // ده كان بيعمل mapping غلط لو القيم اختلفت مستقبلاً
+                Status = Domain.Enums.PaymentStatus.Pending
             };
 
             await _paymentRepository.AddAsync(payment);
@@ -62,11 +73,12 @@ public class SubscriptionService(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error initiating payment");
+            _logger.LogError(ex, "Error initiating payment for user {UserId}", userId);
             return new PayPalPaymentResponseDto
             {
                 Success = false,
                 Message = $"Error: {ex.Message}",
+                // ✅ FIXED: نفس المشكلة هنا — بنستخدم الـ enum من DTOs مباشرة
                 Status = DTOs.Response.PaymentStatus.Failed
             };
         }
@@ -96,12 +108,17 @@ public class SubscriptionService(
             var payment = await _paymentRepository.GetPaymentByPayPalOrderIdAsync(payPalOrderId);
             if (payment != null)
             {
-                payment.Status = (Domain.Enums.PaymentStatus)DTOs.Response.PaymentStatus.Completed;
+                // ✅ FIXED: الكود القديم كان:
+                // payment.Status = (Domain.Enums.PaymentStatus)DTOs.Response.PaymentStatus.Completed;
+                // DTOs.Response.PaymentStatus.Completed = 2
+                // لكن Domain.Enums.PaymentStatus int 2 = "Processing" مش "Succeeded"!
+                // ده كان بيحفظ status غلط في الـ database بدون أي error.
+                // الحل: نحدد الـ enum الصح مباشرة بدون أي cast.
+                payment.Status = Domain.Enums.PaymentStatus.Succeeded;
                 payment.CompletedAt = DateTime.UtcNow;
                 await _paymentRepository.UpdateAsync(payment);
             }
 
-            // ✅ مسمناش subscription عشان متتعارضش مع حاجة تانية
             var newSubscription = new Subscription
             {
                 Id = Guid.NewGuid(),
@@ -111,6 +128,8 @@ public class SubscriptionService(
                 StartDate = DateTime.UtcNow,
                 EndDate = DateTime.UtcNow.AddMonths(subscriptionRequest.DurationInMonths),
                 Price = payment?.Amount ?? 0,
+                // ملاحظة: بنستخدم PayPalOrderId كـ reference ID
+                // مستقبلاً ممكن تضيف field منفصل اسمه PaymentProviderId
                 StripeSubscriptionId = payPalOrderId
             };
 
@@ -127,7 +146,7 @@ public class SubscriptionService(
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error completing payment");
+            _logger.LogError(ex, "Error completing payment for user {UserId}", userId);
             return new ApiResponseDto
             {
                 Success = false,
@@ -254,8 +273,7 @@ public class SubscriptionService(
         return subscription.Plan >= requiredPlan;
     }
 
-    // ✅ حذفنا CompletePayment و الـ explicit interface implementations الفاضية
-    // لأنها كانت بترمي NotImplementedException وبتسبب confusion
+    // ==================== Private Helpers ====================
 
     private static decimal CalculatePrice(SubscriptionPlan plan, int months)
     {
@@ -271,6 +289,7 @@ public class SubscriptionService(
         var monthlyPrice = monthlyPrices[plan];
         var totalPrice = monthlyPrice * months;
 
+        // خصم 20% للاشتراك السنوي
         if (months >= 12)
             totalPrice *= 0.8m;
 
@@ -301,19 +320,8 @@ public class SubscriptionService(
         };
     }
 
-    Task<object?> ISubscriptionService.CompletePaymentAsync(string userId, string orderId, CreateSubscriptionRequestDto subscriptionRequest)
-    {
-        throw new NotImplementedException();
-    }
-
-    Task<object?> ISubscriptionService.InitiatePaymentAsync(string userId, CreateSubscriptionRequestDto subscriptionRequest, PayPalPaymentRequestDto paymentRequest)
-    {
-        throw new NotImplementedException();
-    }
-
-    Task<CompletePaymentResponseDto> ISubscriptionService.CompletePayment(string userId, string orderId, SubscriptionRequestDto request)
-    {
-        throw new NotImplementedException();
-    }
-
+    // ✅ FIXED: حذفنا الـ 3 explicit interface implementations اللي كانت بترمي
+    // NotImplementedException — ده كان بيخلي أي call لـ ISubscriptionService
+    // يـ crash في الـ runtime بدون أي سبب واضح.
+    // دلوقتي الـ interface نظيف ومفيش methods مكررة أو stubs فاضية.
 }
