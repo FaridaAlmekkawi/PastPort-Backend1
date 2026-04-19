@@ -1,4 +1,5 @@
-﻿using PastPort.Application.DTOs.Request;
+﻿using Microsoft.EntityFrameworkCore;
+using PastPort.Application.DTOs.Request;
 using PastPort.Application.DTOs.Response;
 using PastPort.Application.Interfaces;
 using PastPort.Domain.Entities;
@@ -10,6 +11,26 @@ public class CharacterService : ICharacterService
 {
     private readonly ICharacterRepository _characterRepository;
     private readonly ISceneRepository _sceneRepository;
+    // Add to ICharacterRepository:
+    Task<List<Character>> GetAllWithScenesAsync();
+
+    // Implementation in CharacterRepository:
+    public async Task<List<Character>> GetAllWithScenesAsync()
+    {
+        // WHY: Single query with JOIN — O(1) DB round trips instead of O(N)
+        return await _dbSet
+            .Include(c => c.Scene)
+            .AsNoTracking() // WHY: Read-only query, skip change tracking for performance
+            .ToListAsync();
+    }
+
+    // Updated CharacterService.GetAllCharactersAsync:
+    public async Task<List<CharacterResponseDto>> GetAllCharactersAsync()
+    {
+        var characters = await _characterRepository.GetAllWithScenesAsync();
+        return characters.Select(MapToResponseDto).ToList();
+    }
+
 
     public CharacterService(
         ICharacterRepository characterRepository,
@@ -132,4 +153,5 @@ public class CharacterService : ICharacterService
             CreatedAt = character.CreatedAt
         };
     }
+
 }
