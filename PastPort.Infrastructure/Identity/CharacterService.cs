@@ -1,4 +1,14 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿// ✅ FIXED: CharacterService.cs
+// المشاكل الأصلية:
+// 1. كان فيه كود مكسور في أول الـ class قبل الـ constructor:
+//    - Task<List<Character>> GetAllWithScenesAsync();  ← ده interface declaration مش في مكانه
+//    - public async Task<List<Character>> GetAllWithScenesAsync() مع _dbSet ← مش موجودة هنا
+//    - public async Task<List<CharacterResponseDto>> GetAllCharactersAsync() ← method مكررة
+//    ده كان بيخلي الكود مش compile خالص.
+// 2. GetAllCharactersAsync القديمة كانت تعمل N+1 queries:
+//    GetAllAsync() = query 1، وبعدين N queries داخل foreach loop.
+//    الحل: استخدمنا GetAllWithScenesAsync من الـ repository.
+
 using PastPort.Application.DTOs.Request;
 using PastPort.Application.DTOs.Response;
 using PastPort.Application.Interfaces;
@@ -11,26 +21,6 @@ public class CharacterService : ICharacterService
 {
     private readonly ICharacterRepository _characterRepository;
     private readonly ISceneRepository _sceneRepository;
-    // Add to ICharacterRepository:
-    Task<List<Character>> GetAllWithScenesAsync();
-
-    // Implementation in CharacterRepository:
-    public async Task<List<Character>> GetAllWithScenesAsync()
-    {
-        // WHY: Single query with JOIN — O(1) DB round trips instead of O(N)
-        return await _dbSet
-            .Include(c => c.Scene)
-            .AsNoTracking() // WHY: Read-only query, skip change tracking for performance
-            .ToListAsync();
-    }
-
-    // Updated CharacterService.GetAllCharactersAsync:
-    public async Task<List<CharacterResponseDto>> GetAllCharactersAsync()
-    {
-        var characters = await _characterRepository.GetAllWithScenesAsync();
-        return characters.Select(MapToResponseDto).ToList();
-    }
-
 
     public CharacterService(
         ICharacterRepository characterRepository,
@@ -42,7 +32,6 @@ public class CharacterService : ICharacterService
 
     public async Task<CharacterResponseDto> CreateCharacterAsync(CreateCharacterRequestDto request)
     {
-        // Verify scene exists
         var sceneExists = await _sceneRepository.ExistsAsync(request.SceneId);
         if (!sceneExists)
             throw new Exception("Scene not found");
@@ -62,7 +51,6 @@ public class CharacterService : ICharacterService
 
         await _characterRepository.AddAsync(character);
 
-        // Load scene for response
         var characterWithScene = await _characterRepository.GetCharacterWithSceneAsync(character.Id);
         return MapToResponseDto(characterWithScene!);
     }
@@ -76,19 +64,17 @@ public class CharacterService : ICharacterService
         return MapToResponseDto(character);
     }
 
+    // ✅ FIXED: الكود القديم كان:
+    //   var characters = await _characterRepository.GetAllAsync();       // Query 1
+    //   foreach (var character in characters)                            // N Queries
+    //       await _characterRepository.GetCharacterWithSceneAsync(...)
+    //
+    // لو عندك 100 character = 101 database queries!
+    // دلوقتي: query واحدة بس بـ JOIN تجيب كل حاجة
     public async Task<List<CharacterResponseDto>> GetAllCharactersAsync()
     {
-        var characters = await _characterRepository.GetAllAsync();
-        var charactersWithScenes = new List<CharacterResponseDto>();
-
-        foreach (var character in characters)
-        {
-            var fullCharacter = await _characterRepository.GetCharacterWithSceneAsync(character.Id);
-            if (fullCharacter != null)
-                charactersWithScenes.Add(MapToResponseDto(fullCharacter));
-        }
-
-        return charactersWithScenes;
+        var characters = await _characterRepository.GetAllWithScenesAsync();
+        return characters.Select(MapToResponseDto).ToList();
     }
 
     public async Task<List<CharacterResponseDto>> GetCharactersBySceneIdAsync(Guid sceneId)
@@ -137,6 +123,8 @@ public class CharacterService : ICharacterService
         return true;
     }
 
+    // ==================== Private Helper ====================
+
     private static CharacterResponseDto MapToResponseDto(Character character)
     {
         return new CharacterResponseDto
@@ -153,5 +141,4 @@ public class CharacterService : ICharacterService
             CreatedAt = character.CreatedAt
         };
     }
-
 }
