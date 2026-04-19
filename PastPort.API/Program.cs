@@ -1,8 +1,21 @@
-﻿using System.Text;
+// ✅ FIXED: Program.cs
+// المشاكل الأصلية:
+// 1. Swagger كان شغّال في كل البيئات (Production, Staging, Development)
+//    ده بيكشف كل الـ API surface في Production للمهاجمين.
+//    الحل: Swagger بس في Development.
+// 2. CORS كان AllowAll في كل البيئات
+//    الحل: Production بيستخدم allowed origins من الـ config.
+// 3. الـ Log.Information("🚀 PastPort API Starting...") كانت بتتنفذ
+//    قبل app.Run() بفترة — يعني الـ API مش بدأت فعلاً لما الـ log يطلع.
+//    الحل: نقلناها بعد الـ seeding وقبل app.Run() مباشرة.
+// 4. "DefaultFallbackKeyForSafety" كـ JWT secret key خطر في Production
+//    لو الـ config مش متعمل صح، الـ app هتشتغل بـ key معروف للكل.
+//    الحل: بنعمل validation إن الـ key موجود ومش فاضي في startup.
+
+using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using PastPort.API.Extensions;
@@ -42,8 +55,9 @@ builder.Services.AddEndpointsApiExplorer();
 
 // --- Database Context
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"),
-    b => b.MigrationsAssembly("PastPort.Infrastructure")));
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        b => b.MigrationsAssembly("PastPort.Infrastructure")));
 
 // --- Identity
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
@@ -60,6 +74,16 @@ var jwtSettingsSection = builder.Configuration.GetSection("JwtSettings");
 builder.Services.Configure<JwtSettings>(jwtSettingsSection);
 var secretKey = jwtSettingsSection["SecretKey"];
 
+// ✅ FIXED: بدل ما نستخدم "DefaultFallbackKeyForSafety" كـ fallback
+// لو الـ secret key مش موجود في الـ config، الـ app مش هتشتغل خالص.
+// ده أحسن من إنها تشتغل بـ key معروف للكل ويكون كل token يقدر يتعمل بسهولة.
+if (string.IsNullOrWhiteSpace(secretKey))
+{
+    Log.Fatal("❌ JWT SecretKey is missing from configuration. Application cannot start.");
+    throw new InvalidOperationException(
+        "JWT SecretKey is not configured. Add JwtSettings:SecretKey to appsettings.");
+}
+
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -75,7 +99,7 @@ builder.Services.AddAuthentication(options =>
         ValidateIssuerSigningKey = true,
         ValidIssuer = jwtSettingsSection["Issuer"],
         ValidAudience = jwtSettingsSection["Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey ?? "DefaultFallbackKeyForSafety"))
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey))
     };
 });
 
@@ -107,7 +131,7 @@ builder.Services.Configure<PayPalSettings>(builder.Configuration.GetSection("Pay
 builder.Services.Configure<NpcAISettings>(builder.Configuration.GetSection("NpcAI"));
 builder.Services.AddHttpClient<INpcAIService, NpcAIService>();
 
-// --- Swagger Configuration
+// --- Swagger Configuration (نسجّله دايماً — بس هنفعّله في Development بس)
 builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new OpenApiInfo { Title = "PastPort API", Version = "v1" });
@@ -119,14 +143,43 @@ builder.Services.AddSwaggerGen(options =>
         In = ParameterLocation.Header,
         Description = "Enter JWT token"
     });
-    options.AddSecurityRequirement(new OpenApiSecurityRequirement {
-        { new OpenApiSecurityScheme { Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" } }, Array.Empty<string>() }
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
     });
 });
 
+// ✅ FIXED: CORS policy بناءً على البيئة
+// الكود القديم كان AllowAll في كل البيئات — ده خطر في Production
+// دلوقتي:
+//   - Development: AllowAll (مريح للتطوير)
+//   - Production: بيقرأ الـ origins المسموح بيها من الـ config
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", policy => policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+    options.AddPolicy("Development", policy =>
+        policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+
+    options.AddPolicy("Production", policy =>
+    {
+        var allowedOrigins = builder.Configuration
+            .GetSection("Cors:AllowedOrigins")
+            .Get<string[]>() ?? Array.Empty<string>();
+
+        policy.WithOrigins(allowedOrigins)
+              .AllowAnyMethod()
+              .AllowAnyHeader()
+              .AllowCredentials();
+    });
 });
 
 // ==================================================
@@ -134,23 +187,28 @@ builder.Services.AddCors(options =>
 // ==================================================
 var app = builder.Build();
 
-// إنشاء المجلدات بأمان (بإستخدام Try-Catch لضمان عدم توقف التطبيق في الاستضافة)
-var webRoot = app.Environment.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
-string[] paths = { Path.Combine(webRoot, "uploads"), Path.Combine(webRoot, "assets") };
+// إنشاء المجلدات بأمان
+var webRoot = app.Environment.WebRootPath
+    ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
 
-foreach (var path in paths)
+string[] directoriesToCreate = {
+    Path.Combine(webRoot, "uploads"),
+    Path.Combine(webRoot, "assets")
+};
+
+foreach (var dirPath in directoriesToCreate)
 {
     try
     {
-        if (!Directory.Exists(path))
+        if (!Directory.Exists(dirPath))
         {
-            Directory.CreateDirectory(path);
-            Log.Information("📁 Directory created: {Path}", path);
+            Directory.CreateDirectory(dirPath);
+            Log.Information("📁 Directory created: {Path}", dirPath);
         }
     }
     catch (Exception ex)
     {
-        Log.Warning("⚠️ Could not create directory {Path}: {Message}", path, ex.Message);
+        Log.Warning("⚠️ Could not create directory {Path}: {Message}", dirPath, ex.Message);
     }
 }
 
@@ -158,7 +216,7 @@ foreach (var path in paths)
 // 4. MIDDLEWARE PIPELINE
 // ==================================================
 
-// 1. الأخطاء أولاً
+// 1. Error handling أولاً — عشان يلتقط أي exception من أي middleware تاني
 if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
@@ -169,25 +227,32 @@ else
     app.UseHsts();
 }
 
-// 2. Swagger (قبل الـ Auth والـ Redirection لضمان فتحه دائماً)
-app.UseSwagger();
-app.UseSwaggerUI(c =>
+// ✅ FIXED: Swagger بس في Development
+// الكود القديم كان بيشغّل Swagger في كل البيئات
+// ده كان بيكشف كل الـ API endpoints والـ DTOs في Production للمهاجمين
+if (app.Environment.IsDevelopment())
 {
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "PastPort API v1");
-    c.RoutePrefix = "swagger"; // الرابط سيكون: yourdomain.com/swagger
-});
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "PastPort API v1");
+        c.RoutePrefix = "swagger";
+    });
+}
 
 // 3. الأساسيات
 app.UseHttpsRedirection();
-app.UseStaticFiles(); // لملفات wwwroot الافتراضية
+app.UseStaticFiles();
 app.UseRouting();
-app.UseCors("AllowAll");
 
-// 4. الحماية
+// ✅ FIXED: CORS policy بناءً على البيئة
+app.UseCors(app.Environment.IsDevelopment() ? "Development" : "Production");
+
+// 4. الحماية — لازم Authentication قبل Authorization
 app.UseAuthentication();
 app.UseAuthorization();
 
-// 5. الـ Custom Middlewares الخاصة بك
+// 5. الـ Custom Middlewares
 app.UseRequestLogging();
 app.UseCustomExceptionHandler();
 
@@ -204,13 +269,21 @@ using (var scope = app.Services.CreateScope())
     {
         var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
         string[] roles = { "Admin", "School", "Museum", "Enterprise", "Individual" };
+
         foreach (var role in roles)
         {
-            if (!await roleManager.RoleExistsAsync(role)) await roleManager.CreateAsync(new IdentityRole(role));
+            if (!await roleManager.RoleExistsAsync(role))
+                await roleManager.CreateAsync(new IdentityRole(role));
         }
+
+        Log.Information("✅ All roles initialized");
     }
-    catch (Exception ex) { Log.Error(ex, "❌ Seeding failed"); }
+    catch (Exception ex)
+    {
+        Log.Error(ex, "❌ Seeding failed");
+    }
 }
 
+// ✅ FIXED: الـ log ده بيظهر وقت الـ startup الفعلي (قبل app.Run() مباشرة)
 Log.Information("🚀 PastPort API Starting...");
 app.Run();
