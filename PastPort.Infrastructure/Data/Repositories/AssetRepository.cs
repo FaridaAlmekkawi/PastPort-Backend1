@@ -1,3 +1,6 @@
+﻿// ✅ FIXED: AssetRepository.cs
+// أضفنا GetAssetByNameAsync — بتعمل WHERE في الـ database مباشرة
+
 using Microsoft.EntityFrameworkCore;
 using PastPort.Domain.Entities;
 using PastPort.Domain.Enums;
@@ -16,6 +19,7 @@ public class AssetRepository : Repository<Asset>, IAssetRepository
         return await _dbSet
             .Where(a => a.SceneId == sceneId && a.Status == AssetStatus.Available)
             .OrderBy(a => a.Name)
+            .AsNoTracking()
             .ToListAsync();
     }
 
@@ -29,6 +33,7 @@ public class AssetRepository : Repository<Asset>, IAssetRepository
     {
         return await _dbSet
             .Where(a => a.Type == type && a.Status == AssetStatus.Available)
+            .AsNoTracking()
             .ToListAsync();
     }
 
@@ -36,5 +41,20 @@ public class AssetRepository : Repository<Asset>, IAssetRepository
     {
         return await _dbSet
             .AnyAsync(a => a.FileName == fileName && a.FileHash == fileHash);
+    }
+
+    // ✅ FIXED: البحث بالاسم في الـ database مباشرة بدل تحميل كل الـ assets
+    // الكود القديم في UnityAssetsController كان:
+    //   var assets = await _assetRepository.GetAllAsync();              ← SELECT * FROM Assets (كلهم!)
+    //   var asset = assets.FirstOrDefault(a => a.Name.Equals(name));   ← فلترة في C# مش في DB
+    //
+    // دلوقتي:
+    //   SELECT TOP 1 * FROM Assets WHERE LOWER(Name) = LOWER(@name)    ← فلترة في DB مباشرة
+    public async Task<Asset?> GetAssetByNameAsync(string name)
+    {
+        return await _dbSet
+            .AsNoTracking()
+            .FirstOrDefaultAsync(a =>
+                a.Name.ToLower() == name.ToLower());
     }
 }
