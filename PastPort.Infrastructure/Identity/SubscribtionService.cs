@@ -7,6 +7,10 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Transactions;
+using PastPort.Domain.Entities;
+using PastPort.Domain.Enums;
+using PastPort.Domain.Interfaces;
+using PastPort.Infrastructure.Data;
 
 namespace PastPort.Infrastructure.Identity
 {
@@ -122,7 +126,7 @@ namespace PastPort.Infrastructure.Identity
                 UserId = userId,
                 Amount = chargeAmount,
                 Currency = plan.Currency,
-                Status = TransactionStatus.Pending,
+                Status = System.Transactions.TransactionStatus.Pending,
                 Gateway = request.Gateway
             };
             _db.PaymentTransactions.Add(transaction);
