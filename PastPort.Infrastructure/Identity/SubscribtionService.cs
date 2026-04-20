@@ -5,7 +5,8 @@ using PastPort.Domain.Entities;
 using PastPort.Domain.Enums;
 using PastPort.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
-
+using DomainTransactionStatus = PastPort.Domain.Enums.TransactionStatus;
+using DomainPlan = PastPort.Domain.Entities.Plan;
 namespace PastPort.Infrastructure.Identity
 {
     public class SubscriptionService : ISubscriptionService

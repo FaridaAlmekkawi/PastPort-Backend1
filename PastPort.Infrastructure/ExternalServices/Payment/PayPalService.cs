@@ -1,111 +1,71 @@
 ﻿using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using PastPort.Application.Common;
-using PastPort.Application.DTOs.Request;
-using PastPort.Application.DTOs.Response;
-using PastPort.Application.Interfaces;
-
-namespace PastPort.Infrastructure.ExternalServices.Payment;
+using PastPort.Application.DTOs;
+using PastPort.Infrastructure.Data;
 
 public class PayPalService : IPaymentService
 {
     private readonly PayPalSettings _payPalSettings;
     private readonly ILogger<PayPalService> _logger;
+    private readonly ApplicationDbContext _db;
 
     public PayPalService(
         IOptions<PayPalSettings> payPalSettings,
-        ILogger<PayPalService> logger)
+        ILogger<PayPalService> logger,
+        ApplicationDbContext db)  // ← ADD
     {
         _payPalSettings = payPalSettings.Value;
         _logger = logger;
+        _db = db;
     }
 
-    // ✅ شلنا async وحطينا Task.FromResult
-    public Task<PayPalPaymentResponseDto> CreateOrderAsync(
-        string userId,
-        PayPalPaymentRequestDto request,
-        decimal amount)
+    // ADD these missing interface implementations:
+    public Task<(string PaymentUrl, string GatewayTransactionId)> CreateCheckoutSessionAsync(
+        Guid subscriptionId, Guid transactionId, decimal amount, string currency,
+        string successUrl, string cancelUrl, CancellationToken ct = default)
     {
-        try
-        {
-            var orderId = Guid.NewGuid().ToString();
-            var approvalLink = $"https://sandbox.paypal.com/checkoutnow?token={orderId}";
-
-            _logger.LogInformation("PayPal order created: {OrderId}", orderId);
-
-            return Task.FromResult(new PayPalPaymentResponseDto
-            {
-                Success = true,
-                Message = "Order created successfully",
-                OrderId = orderId,
-                ApprovalLink = approvalLink,
-                Status = PaymentStatus.Pending
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error creating PayPal order");
-
-            return Task.FromResult(new PayPalPaymentResponseDto
-            {
-                Success = false,
-                Message = $"Error: {ex.Message}",
-                Status = PaymentStatus.Failed
-            });
-        }
+        var orderId = Guid.NewGuid().ToString();
+        var approvalLink = $"https://sandbox.paypal.com/checkoutnow?token={orderId}";
+        return Task.FromResult((approvalLink, orderId));
     }
 
-    // ✅ شلنا async وحطينا Task.FromResult
-    public Task<PayPalPaymentResponseDto> CaptureOrderAsync(string orderId)
+    public Task<PaymentWebhookEvent> ParseAndVerifyWebhookAsync(
+        string rawBody, string signatureHeader, CancellationToken ct = default)
+        => throw new NotImplementedException("PayPal webhook parsing not implemented.");
+
+    public Task ProcessWebhookAsync(PaymentWebhookEvent webhookEvent, CancellationToken ct = default)
+        => throw new NotImplementedException("PayPal webhook processing not implemented.");
+
+    public async Task<IEnumerable<TransactionDto>> GetTransactionHistoryAsync(
+        string userId, CancellationToken ct = default)
     {
-        try
-        {
-            _logger.LogInformation("PayPal order captured: {OrderId}", orderId);
+        var txs = await _db.PaymentTransactions
+            .Where(t => t.UserId == userId)
+            .OrderByDescending(t => t.CreatedAt)
+            .ToListAsync(ct);
 
-            return Task.FromResult(new PayPalPaymentResponseDto
-            {
-                Success = true,
-                Message = "Payment completed successfully",
-                OrderId = orderId,
-                Status = PaymentStatus.Completed
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error capturing PayPal order");
-
-            return Task.FromResult(new PayPalPaymentResponseDto
-            {
-                Success = false,
-                Message = $"Error: {ex.Message}",
-                Status = PaymentStatus.Failed
-            });
-        }
+        return txs.Select(t => new TransactionDto(
+            t.Id, t.Amount, t.Currency,
+            t.Status, t.Gateway,
+            t.GatewayTransactionId, t.FailureReason,
+            t.CreatedAt, t.ProcessedAt));
     }
 
-    // ✅ شلنا async وحطينا Task.FromResult
-    public Task<PayPalPaymentResponseDto> GetOrderDetailsAsync(string orderId)
+    public async Task<IEnumerable<InvoiceDto>> GetInvoicesAsync(
+        string userId, CancellationToken ct = default)
     {
-        try
-        {
-            return Task.FromResult(new PayPalPaymentResponseDto
-            {
-                Success = true,
-                Message = "Order details retrieved",
-                OrderId = orderId,
-                Status = PaymentStatus.Completed
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting PayPal order details");
+        var invoices = await _db.Invoices
+            .Where(i => i.UserId == userId)
+            .OrderByDescending(i => i.IssuedAt)
+            .ToListAsync(ct);
 
-            return Task.FromResult(new PayPalPaymentResponseDto
-            {
-                Success = false,
-                Message = $"Error: {ex.Message}",
-                Status = PaymentStatus.Failed
-            });
-        }
+        return invoices.Select(i => new InvoiceDto(
+            i.Id, i.InvoiceNumber,
+            i.SubTotal, i.TaxAmount, i.DiscountAmount, i.TotalAmount,
+            i.Currency, i.Status,
+            i.IssuedAt, i.PaidAt, i.PdfUrl));
     }
+
+    // Keep your existing CreateOrderAsync, CaptureOrderAsync, GetOrderDetailsAsync methods
 }
