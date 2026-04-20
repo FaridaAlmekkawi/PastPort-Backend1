@@ -1,12 +1,22 @@
-﻿using System.Net.Http.Headers;
+﻿// ============================================================
+//  NpcAIService.cs — PastPort.Infrastructure/ExternalServices/AI
+//
+//  GAP 18 FIX: If NpcAI:BaseUrl is missing or empty in appsettings,
+//  _httpClient.BaseAddress was set to null (new Uri("") throws but
+//  empty string silently sets BaseAddress = null). Every request then
+//  threw an opaque NullReferenceException with no hint about the
+//  missing configuration.
+//
+//  Fix: Validate BaseUrl in the constructor with a clear error message
+//  that fails fast at startup instead of at runtime per-request.
+// ============================================================
+using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using PastPort.Application.Interfaces;
-
 
 namespace PastPort.Infrastructure.ExternalServices.AI;
 
@@ -33,7 +43,16 @@ public class NpcAIService : INpcAIService
     {
         _httpClient = httpClient;
         _logger = logger;
-        _httpClient.BaseAddress = new Uri(settings.Value.BaseUrl);
+
+        // FIX GAP 18: Validate BaseUrl at construction time so the app fails
+        // loudly at startup with a meaningful message, not silently per-request.
+        var baseUrl = settings.Value.BaseUrl;
+        if (string.IsNullOrWhiteSpace(baseUrl))
+            throw new InvalidOperationException(
+                "NpcAI:BaseUrl is not configured. " +
+                "Add it to appsettings.json: \"NpcAI\": { \"BaseUrl\": \"http://your-ai-server\" }");
+
+        _httpClient.BaseAddress = new Uri(baseUrl);
         _httpClient.Timeout = TimeSpan.FromSeconds(60);
     }
 
@@ -43,7 +62,6 @@ public class NpcAIService : INpcAIService
         string sessionId,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        // تحويل الـ world object لـ JSON string
         var worldJson = JsonSerializer.Serialize(new
         {
             year_range = world.YearRange,
@@ -54,16 +72,10 @@ public class NpcAIService : INpcAIService
 
         using var form = new MultipartFormDataContent();
 
-        // audio file
         var audioContent = new ByteArrayContent(audioBytes);
-        audioContent.Headers.ContentType =
-            new MediaTypeHeaderValue("application/octet-stream");
+        audioContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
         form.Add(audioContent, "audio", "audio.wav");
-
-        // world كـ string مش object
         form.Add(new StringContent(worldJson), "world");
-
-        // session_id
         form.Add(new StringContent(sessionId), "session_id");
 
         HttpResponseMessage response;
@@ -76,7 +88,7 @@ public class NpcAIService : INpcAIService
             {
                 var error = await response.Content.ReadAsStringAsync(cancellationToken);
                 _logger.LogError("NPC API error {Status}: {Error}", response.StatusCode, error);
-                throw new Exception($"NPC API failed: {response.StatusCode}");
+                throw new Exception($"NPC API returned {response.StatusCode}: {error}");
             }
         }
         catch (Exception ex)
@@ -85,26 +97,22 @@ public class NpcAIService : INpcAIService
             throw;
         }
 
-        // قراءة الـ Streaming JSON Lines
         var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         using var reader = new StreamReader(stream, Encoding.UTF8);
 
         while (!reader.EndOfStream && !cancellationToken.IsCancellationRequested)
         {
             var line = await reader.ReadLineAsync(cancellationToken);
-
-            if (string.IsNullOrWhiteSpace(line))
-                continue;
+            if (string.IsNullOrWhiteSpace(line)) continue;
 
             NpcStreamChunk? chunk = null;
-
             try
             {
                 chunk = JsonSerializer.Deserialize<NpcStreamChunk>(line, _jsonOptions);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to parse chunk: {Line}", line);
+                _logger.LogWarning(ex, "Failed to parse NPC stream chunk: {Line}", line);
                 continue;
             }
 
@@ -112,6 +120,4 @@ public class NpcAIService : INpcAIService
                 yield return chunk;
         }
     }
-
-  
 }
