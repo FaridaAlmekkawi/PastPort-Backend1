@@ -1,40 +1,48 @@
-// ✅ FIXED: ISubscriptionService.cs
-// المشكلة الأصلية: الـ interface كان فيه methods مكررة بـ return types مختلفة
-// (object? و CompletePaymentResponseDto) اللي كانت بتخلي الـ implementation
-// يرمي NotImplementedException في كل مرة بيتعمل فيها call.
-// الحل: وحّدنا الـ interface بـ return types واضحة ومحددة.
-
-using PastPort.Application.DTOs.Request;
-using PastPort.Application.DTOs.Response;
-using PastPort.Domain.Enums;
-
-namespace PastPort.Application.Interfaces;
+using PastPort.Application.DTOs;
 
 public interface ISubscriptionService
 {
-    Task<SubscriptionResponseDto> CreateSubscriptionAsync(
+    /// <summary>Returns all active, public plans with their features.</summary>
+    Task<IEnumerable<PlanDto>> GetActivePlansAsync(CancellationToken ct = default);
+
+    /// <summary>Returns a single plan by ID.</summary>
+    Task<PlanDto?> GetPlanByIdAsync(Guid planId, CancellationToken ct = default);
+
+    /// <summary>Returns the user's current active subscription, if any.</summary>
+    Task<UserSubscriptionDto?> GetActiveSubscriptionAsync(string userId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Step 1 of checkout: create a PendingPayment subscription + transaction
+    /// and return the gateway payment URL to redirect the user to.
+    /// </summary>
+    Task<InitiateCheckoutResponse> InitiateCheckoutAsync(
         string userId,
-        CreateSubscriptionRequestDto request);
+        InitiateCheckoutRequest request,
+        CancellationToken ct = default);
 
-    Task<SubscriptionResponseDto?> GetActiveSubscriptionAsync(string userId);
+    /// <summary>
+    /// Called after a successful webhook to activate the subscription.
+    /// </summary>
+    Task ActivateSubscriptionAsync(Guid transactionId, CancellationToken ct = default);
 
-    Task<List<SubscriptionResponseDto>> GetUserSubscriptionsAsync(string userId);
+    /// <summary>
+    /// Called after a failed webhook to mark the subscription as PastDue.
+    /// </summary>
+    Task HandleFailedPaymentAsync(Guid transactionId, string reason, CancellationToken ct = default);
 
-    Task<bool> CancelSubscriptionAsync(string userId);
-
-    Task<List<SubscriptionPlanInfoDto>> GetAvailablePlansAsync();
-
-    Task<bool> CheckSubscriptionAccessAsync(string userId, SubscriptionPlan requiredPlan);
-
-    // ✅ FIXED: بدل object? بقى PayPalPaymentResponseDto — return type واضح
-    Task<PayPalPaymentResponseDto> InitiatePaymentAsync(
+    /// <summary>
+    /// Upgrades or downgrades a user's plan, applying proration if requested.
+    /// </summary>
+    Task<UserSubscriptionDto> ChangePlanAsync(
         string userId,
-        CreateSubscriptionRequestDto subscriptionRequest,
-        PayPalPaymentRequestDto paymentRequest);
+        UpgradePlanRequest request,
+        CancellationToken ct = default);
 
-    // ✅ FIXED: بدل object? بقى ApiResponseDto — return type واضح
-    Task<ApiResponseDto> CompletePaymentAsync(
-        string userId,
-        string orderId,
-        CreateSubscriptionRequestDto subscriptionRequest);
+    /// <summary>Cancels a subscription at period end (does not revoke access immediately).</summary>
+    Task CancelSubscriptionAsync(string userId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Feature access gate: returns true if the user's active plan includes the feature slug.
+    /// </summary>
+    Task<bool> HasFeatureAccessAsync(string userId, string featureSlug, CancellationToken ct = default);
 }

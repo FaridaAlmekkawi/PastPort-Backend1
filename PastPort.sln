@@ -17,7 +17,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SubscriptionPayment", "Subs
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Domain", "Domain", "{37FAD8CD-BA2D-43A2-8553-C012C842564B}"
 	ProjectSection(SolutionItems) = preProject
-		Entities.cs = Entities.cs
 		Enums.cs = Enums.cs
 	EndProjectSection
 EndProject
@@ -28,32 +27,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Data", "Data", "{BD53104C-2
 		AppDbContext.cs = AppDbContext.cs
 	EndProjectSection
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Application", "Application", "{4A8C9995-B372-47B1-BF3E-46EA9FC520AD}"
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "DOTs", "DOTs", "{08131A92-AF07-4235-9D60-27DC3C242E4A}"
-	ProjectSection(SolutionItems) = preProject
-		DOTs.cs = DOTs.cs
-	EndProjectSection
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Interfaces", "Interfaces", "{3BD2CCF1-E338-4D9D-BCC9-8106926263B3}"
-	ProjectSection(SolutionItems) = preProject
-		IPaymentService.cs = IPaymentService.cs
-		ISubscriptionService.cs = ISubscriptionService.cs
-	EndProjectSection
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Services", "Services", "{742C150E-F992-4623-9232-3318DD0CE0DB}"
-	ProjectSection(SolutionItems) = preProject
-		PaymentService.cs = PaymentService.cs
-		SubscriptionService.cs = SubscriptionService.cs
-	EndProjectSection
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "API", "API", "{87DA3874-3B20-492E-94D9-2A511B31EE70}"
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Controllers", "Controllers", "{941DC8AA-1EF3-4F50-B376-9F87476C7FFF}"
-	ProjectSection(SolutionItems) = preProject
-		PaymentController.cs = PaymentController.cs
-		SubscriptionController.cs = SubscriptionController.cs
-	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Filters", "Filters", "{A767B16D-8ABB-4E8E-90BA-213B06D37D2B}"
 	ProjectSection(SolutionItems) = preProject
@@ -94,12 +68,7 @@ Global
 		{37FAD8CD-BA2D-43A2-8553-C012C842564B} = {F5A5F7D7-59D6-41F9-9FD6-43FF8D104F76}
 		{D45F0B09-E161-468D-BC4B-561AFCA00F73} = {F5A5F7D7-59D6-41F9-9FD6-43FF8D104F76}
 		{BD53104C-27AB-4CF5-BA55-83F2DB6C3728} = {D45F0B09-E161-468D-BC4B-561AFCA00F73}
-		{4A8C9995-B372-47B1-BF3E-46EA9FC520AD} = {F5A5F7D7-59D6-41F9-9FD6-43FF8D104F76}
-		{08131A92-AF07-4235-9D60-27DC3C242E4A} = {4A8C9995-B372-47B1-BF3E-46EA9FC520AD}
-		{3BD2CCF1-E338-4D9D-BCC9-8106926263B3} = {4A8C9995-B372-47B1-BF3E-46EA9FC520AD}
-		{742C150E-F992-4623-9232-3318DD0CE0DB} = {4A8C9995-B372-47B1-BF3E-46EA9FC520AD}
 		{87DA3874-3B20-492E-94D9-2A511B31EE70} = {F5A5F7D7-59D6-41F9-9FD6-43FF8D104F76}
-		{941DC8AA-1EF3-4F50-B376-9F87476C7FFF} = {87DA3874-3B20-492E-94D9-2A511B31EE70}
 		{A767B16D-8ABB-4E8E-90BA-213B06D37D2B} = {87DA3874-3B20-492E-94D9-2A511B31EE70}
 	EndGlobalSection
 EndGlobal
