@@ -86,7 +86,7 @@ namespace PastPort.Infrastructure.Identity
 
                 switch (webhookEvent.TransactionStatus)
                 {
-                    case PastPort.Domain.Entities.TransactionStatus.Success:
+                    case TransactionStatus.Success:
                         await _subscriptionService.ActivateSubscriptionAsync(transaction.Id, ct);
                         break;
 
@@ -98,7 +98,7 @@ namespace PastPort.Infrastructure.Identity
                         break;
 
                     case TransactionStatus.Refunded:
-                        transaction.Status = TransactionStatus.Refunded;
+                        transaction.Status = (System.Transactions.TransactionStatus)TransactionStatus.Refunded;
                         await _db.SaveChangesAsync(ct);
                         break;
                 }
