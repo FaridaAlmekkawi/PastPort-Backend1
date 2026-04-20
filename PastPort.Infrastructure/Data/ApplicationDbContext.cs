@@ -1,5 +1,4 @@
-﻿// PastPort.Infrastructure/Data/ApplicationDbContext.cs
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using PastPort.Domain.Entities;
 using PastPort.Domain.Enums;
@@ -7,221 +6,19 @@ using System;
 
 namespace PastPort.Infrastructure.Data;
 
-public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : IdentityDbContext<ApplicationUser>(options)
+public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
+    : IdentityDbContext<ApplicationUser>(options)
 {
+    // --- Existing DbSets (Core) ---
+    public DbSet<HistoricalScene> HistoricalScenes => Set<HistoricalScene>();
+    public DbSet<Character> Characters => Set<Character>();
+    public DbSet<Conversation> Conversations => Set<Conversation>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<EmailVerificationCode> EmailVerificationCodes => Set<EmailVerificationCode>();
+    public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
+    public DbSet<Asset> Assets => Set<Asset>();
 
-    // Existing DbSets
-    public required DbSet<HistoricalScene> HistoricalScenes { get; set; }
-    public required DbSet<Character> Characters { get; set; }
-    public required DbSet<Conversation> Conversations { get; set; }
-    public required DbSet<Subscription> Subscriptions { get; set; }
-    public required DbSet<RefreshToken> RefreshTokens { get; set; }
-    public required DbSet<EmailVerificationCode> EmailVerificationCodes { get; set; }
-    public required DbSet<PasswordResetToken> PasswordResetTokens { get; set; }
-    public required DbSet<Asset> Assets { get; set; }
-
-    // NEW: Payment DbSets
-    public required DbSet<Payment> Payments { get; set; }
-    public required DbSet<PaymentTransaction> PaymentTransactions { get; set; }
-    public required DbSet<Refund> Refunds { get; set; }
-    public required DbSet<Invoice> Invoices { get; set; }
-    public required DbSet<InvoiceItem> InvoiceItems { get; set; }
-    public required DbSet<SavedPaymentMethod> SavedPaymentMethods { get; set; }
-
-    protected override void OnModelCreating(ModelBuilder builder)
-    {
-        base.OnModelCreating(builder);
-
-        // ==================== Existing Configurations ====================
-
-        builder.Entity<HistoricalScene>()
-            .HasMany(s => s.Characters)
-            .WithOne(c => c.Scene)
-            .HasForeignKey(c => c.SceneId);
-
-        builder.Entity<RefreshToken>()
-            .HasOne(rt => rt.User)
-            .WithMany()
-            .HasForeignKey(rt => rt.UserId);
-
-        builder.Entity<Subscription>()
-            .Property(s => s.Price)
-            .HasColumnType("decimal(18,2)");
-
-        builder.Entity<Subscription>()
-            .HasOne(s => s.LastPayment)
-            .WithMany()
-            .HasForeignKey(s => s.LastPaymentId)
-            .OnDelete(DeleteBehavior.SetNull);
-
-        builder.Entity<EmailVerificationCode>()
-            .HasOne(e => e.User)
-            .WithMany()
-            .HasForeignKey(e => e.UserId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.Entity<EmailVerificationCode>()
-            .HasIndex(e => e.Code);
-
-        builder.Entity<PasswordResetToken>()
-            .HasOne(p => p.User)
-            .WithMany()
-            .HasForeignKey(p => p.UserId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.Entity<PasswordResetToken>()
-            .HasIndex(p => p.Code);
-
-        builder.Entity<PasswordResetToken>()
-            .HasIndex(p => p.Token);
-
-        builder.Entity<Asset>()
-            .HasOne(a => a.Scene)
-            .WithMany()
-            .HasForeignKey(a => a.SceneId)
-            .OnDelete(DeleteBehavior.SetNull);
-
-        builder.Entity<Asset>()
-            .HasIndex(a => a.FileName);
-
-        builder.Entity<Asset>()
-            .HasIndex(a => a.FileHash);
-
-        // ==================== NEW: Payment Configurations ====================
-
-        // Payment
-        builder.Entity<Payment>(entity =>
-        {
-            entity.HasKey(p => p.Id);
-
-            entity.Property(p => p.Amount)
-                .HasColumnType("decimal(18,2)");
-
-            entity.Property(p => p.SubtotalAmount)
-                .HasColumnType("decimal(18,2)");
-
-            entity.Property(p => p.TaxAmount)
-                .HasColumnType("decimal(18,2)");
-
-            entity.Property(p => p.DiscountAmount)
-                .HasColumnType("decimal(18,2)");
-
-            entity.HasOne(p => p.User)
-                .WithMany()
-                .HasForeignKey(p => p.UserId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(p => p.Subscription)
-                .WithMany(s => s.Payments)
-                .HasForeignKey(p => p.SubscriptionId)
-                .OnDelete(DeleteBehavior.SetNull);
-
-            entity.HasIndex(p => p.ProviderPaymentId);
-            entity.HasIndex(p => p.Status);
-            entity.HasIndex(p => p.CreatedAt);
-        });
-
-        // PaymentTransaction
-        builder.Entity<PaymentTransaction>(entity =>
-        {
-            entity.HasKey(pt => pt.Id);
-
-            entity.HasOne(pt => pt.Payment)
-                .WithMany()
-                .HasForeignKey(pt => pt.PaymentId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            entity.HasIndex(pt => pt.CreatedAt);
-        });
-
-        // Refund
-        builder.Entity<Refund>(entity =>
-        {
-            entity.HasKey(r => r.Id);
-
-            entity.Property(r => r.Amount)
-                .HasColumnType("decimal(18,2)");
-
-            entity.HasOne(r => r.Payment)
-                .WithMany()
-                .HasForeignKey(r => r.PaymentId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasIndex(r => r.ProviderRefundId);
-            entity.HasIndex(r => r.Status);
-        });
-
-        // Invoice
-        builder.Entity<Invoice>(entity =>
-        {
-            entity.HasKey(i => i.Id);
-
-            entity.Property(i => i.Amount)
-                .HasColumnType("decimal(18,2)");
-
-            entity.Property(i => i.TaxAmount)
-                .HasColumnType("decimal(18,2)");
-
-            entity.Property(i => i.TotalAmount)
-                .HasColumnType("decimal(18,2)");
-
-            entity.HasOne(i => i.User)
-                .WithMany()
-                .HasForeignKey(i => i.UserId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            entity.HasOne(i => i.Payment)
-                .WithMany()
-                .HasForeignKey(i => i.PaymentId)
-                .OnDelete(DeleteBehavior.SetNull);
-
-            entity.HasOne(i => i.Subscription)
-                .WithMany()
-                .HasForeignKey(i => i.SubscriptionId)
-                .OnDelete(DeleteBehavior.SetNull);
-
-            entity.HasIndex(i => i.InvoiceNumber)
-                .IsUnique();
-
-            entity.HasIndex(i => i.Status);
-            entity.HasIndex(i => i.IssuedAt);
-        });
-
-        // InvoiceItem
-        builder.Entity<InvoiceItem>(entity =>
-        {
-            entity.HasKey(ii => ii.Id);
-
-            entity.Property(ii => ii.UnitPrice)
-                .HasColumnType("decimal(18,2)");
-
-            entity.Property(ii => ii.Amount)
-                .HasColumnType("decimal(18,2)");
-
-            entity.HasOne(ii => ii.Invoice)
-                .WithMany(i => i.Items)
-                .HasForeignKey(ii => ii.InvoiceId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        // SavedPaymentMethod
-        builder.Entity<SavedPaymentMethod>(entity =>
-        {
-            entity.HasKey(spm => spm.Id);
-
-            entity.HasOne(spm => spm.User)
-                .WithMany()
-                .HasForeignKey(spm => spm.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            entity.HasIndex(spm => spm.ProviderPaymentMethodId);
-            entity.HasIndex(spm => new { spm.UserId, spm.IsDefault });
-        });
-    }
-
-    //new
-    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
-
+    // --- New Payment & Subscription DbSets (Based on your new logic) ---
     public DbSet<Plan> Plans => Set<Plan>();
     public DbSet<Feature> Features => Set<Feature>();
     public DbSet<PlanFeature> PlanFeatures => Set<PlanFeature>();
@@ -229,73 +26,63 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<PaymentTransaction> PaymentTransactions => Set<PaymentTransaction>();
     public DbSet<Invoice> Invoices => Set<Invoice>();
     public DbSet<WebhookLog> WebhookLogs => Set<WebhookLog>();
+    public DbSet<Refund> Refunds => Set<Refund>();
+    public DbSet<SavedPaymentMethod> SavedPaymentMethods => Set<SavedPaymentMethod>();
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    protected override void OnModelCreating(ModelBuilder builder)
     {
-        base.OnModelCreating(modelBuilder);
+        base.OnModelCreating(builder);
 
-        // ── Plan ────────────────────────────────────────────
-        modelBuilder.Entity<Plan>(e =>
+        // 1. Existing Configurations
+        builder.Entity<HistoricalScene>()
+            .HasMany(s => s.Characters)
+            .WithOne(c => c.Scene)
+            .HasForeignKey(c => c.SceneId);
+
+        builder.Entity<Asset>()
+            .HasIndex(a => a.FileName);
+
+        // 2. Plan & Features
+        builder.Entity<Plan>(e =>
         {
             e.HasIndex(p => p.Name).IsUnique();
             e.Property(p => p.Price).HasPrecision(18, 2);
         });
 
-        // ── Feature slug must be unique ─────────────────────
-        modelBuilder.Entity<Feature>(e =>
+        builder.Entity<Feature>(e =>
         {
             e.HasIndex(f => f.Slug).IsUnique();
         });
 
-        // ── PlanFeature: composite unique constraint ─────────
-        modelBuilder.Entity<PlanFeature>(e =>
+        builder.Entity<PlanFeature>(e =>
         {
             e.HasIndex(pf => new { pf.PlanId, pf.FeatureId }).IsUnique();
-            e.HasOne(pf => pf.Plan)
-             .WithMany(p => p.PlanFeatures)
-             .HasForeignKey(pf => pf.PlanId)
-             .OnDelete(DeleteBehavior.Cascade);
-            e.HasOne(pf => pf.Feature)
-             .WithMany(f => f.PlanFeatures)
-             .HasForeignKey(pf => pf.FeatureId)
-             .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(pf => pf.Plan).WithMany(p => p.PlanFeatures).HasForeignKey(pf => pf.PlanId);
         });
 
-        // ── UserSubscription ────────────────────────────────
-        modelBuilder.Entity<UserSubscription>(e =>
+        // 3. Subscriptions & Transactions
+        builder.Entity<UserSubscription>(e =>
         {
             e.HasIndex(us => new { us.UserId, us.Status });
-            e.HasOne(us => us.Plan)
-             .WithMany(p => p.UserSubscriptions)
-             .HasForeignKey(us => us.PlanId)
-             .OnDelete(DeleteBehavior.Restrict); // Don't cascade-delete subs on plan delete
+            e.HasOne(us => us.Plan).WithMany(p => p.UserSubscriptions).OnDelete(DeleteBehavior.Restrict);
         });
 
-        // ── PaymentTransaction ──────────────────────────────
-        modelBuilder.Entity<PaymentTransaction>(e =>
+        builder.Entity<PaymentTransaction>(e =>
         {
             e.HasIndex(t => t.GatewayTransactionId);
             e.HasIndex(t => t.IdempotencyKey).IsUnique();
-            e.HasOne(t => t.UserSubscription)
-             .WithMany(us => us.Transactions)
-             .HasForeignKey(t => t.UserSubscriptionId)
-             .OnDelete(DeleteBehavior.Cascade);
+            e.Property(t => t.Amount).HasPrecision(18, 2); // تأكد من إضافة الدقة هنا أيضاً
         });
 
-        
-
-        // ── Invoice ─────────────────────────────────────────
-        modelBuilder.Entity<Invoice>(e =>
+        builder.Entity<Invoice>(e =>
         {
             e.HasIndex(i => i.InvoiceNumber).IsUnique();
-            e.HasOne(i => i.PaymentTransaction)
-             .WithOne(t => t.Invoice)
-             .HasForeignKey<Invoice>(i => i.PaymentTransactionId)
-             .OnDelete(DeleteBehavior.SetNull);
+            e.Property(i => i.TotalAmount).HasPrecision(18, 2);
+            e.HasOne(i => i.PaymentTransaction).WithOne(t => t.Invoice)
+             .HasForeignKey<Invoice>(i => i.PaymentTransactionId);
         });
 
-        // ── WebhookLog: idempotency key ─────────────────────
-        modelBuilder.Entity<WebhookLog>(e =>
+        builder.Entity<WebhookLog>(e =>
         {
             e.HasIndex(w => new { w.Gateway, w.GatewayEventId }).IsUnique();
         });
