@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using PastPort.Application.DTOs;
 using PastPort.Application.Interfaces;
 using System.Security.Claims;
 

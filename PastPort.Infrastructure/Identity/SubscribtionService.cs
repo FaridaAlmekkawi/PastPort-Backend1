@@ -152,7 +152,7 @@ namespace PastPort.Infrastructure.Identity
             {
                 _logger.LogError(ex, "Gateway session creation failed for transaction {TxId}", transaction.Id);
                 // Mark transaction as cancelled; don't expose gateway errors to client
-                transaction.Status = (System.Transactions.TransactionStatus)TransactionStatus.Cancelled;
+                transaction.Status = (DomainTransactionStatus)(System.Transactions.TransactionStatus)TransactionStatus.Cancelled;
                 transaction.FailureReason = "Gateway session creation failed.";
                 subscription.Status = SubscriptionStatus.PendingPayment; // keep for retry
                 await _db.SaveChangesAsync(ct);
@@ -201,7 +201,7 @@ namespace PastPort.Infrastructure.Identity
             sub.UpdatedAt = DateTime.UtcNow;
 
             // ── Finalize the transaction ──────────────────────────
-            tx.Status = (System.Transactions.TransactionStatus)TransactionStatus.Success;
+            tx.Status = (DomainTransactionStatus)(System.Transactions.TransactionStatus)TransactionStatus.Success;
             tx.ProcessedAt = DateTime.UtcNow;
 
             // ── Mark invoice as Paid ──────────────────────────────
@@ -229,7 +229,7 @@ namespace PastPort.Infrastructure.Identity
                 .FirstOrDefaultAsync(t => t.Id == transactionId, ct)
                 ?? throw new InvalidOperationException($"Transaction {transactionId} not found.");
 
-            tx.Status = (System.Transactions.TransactionStatus)TransactionStatus.Failed;
+            tx.Status = (DomainTransactionStatus)(System.Transactions.TransactionStatus)TransactionStatus.Failed;
             tx.FailureReason = reason;
             tx.ProcessedAt = DateTime.UtcNow;
 
@@ -297,7 +297,7 @@ namespace PastPort.Infrastructure.Identity
                 UserId = userId,
                 Amount = chargeAmount,
                 Currency = newPlan.Currency,
-                Status = (System.Transactions.TransactionStatus)TransactionStatus.Pending,
+                Status = (DomainTransactionStatus)(System.Transactions.TransactionStatus)TransactionStatus.Pending,
                 // In production, charge this via gateway immediately for upgrades
             };
             _db.PaymentTransactions.Add(newTx);

@@ -6,6 +6,7 @@ using PastPort.Application.DTOs;
 using PastPort.Infrastructure.Data;
 
 
+
 namespace PastPort.Infrastructure.Identity
 {
     public class PaymentService : IPaymentService
@@ -98,7 +99,7 @@ namespace PastPort.Infrastructure.Identity
                         break;
 
                     case TransactionStatus.Refunded:
-                        transaction.Status = (System.Transactions.TransactionStatus)TransactionStatus.Refunded;
+                        transaction.Status = (TransactionStatus)(System.Transactions.TransactionStatus)TransactionStatus.Refunded;
                         await _db.SaveChangesAsync(ct);
                         break;
                 }

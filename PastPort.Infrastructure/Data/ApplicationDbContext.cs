@@ -6,7 +6,7 @@ using System;
 
 namespace PastPort.Infrastructure.Data;
 
-public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
+public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) 
     : IdentityDbContext<ApplicationUser>(options)
 {
     // --- Existing DbSets (Core) ---

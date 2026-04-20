@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Transactions;
+using PastPort.Domain.Enums;
 
 namespace PastPort.Domain.Entities
 {
@@ -27,7 +28,7 @@ namespace PastPort.Domain.Entities
         [MaxLength(3)]
         public string Currency { get; set; } = "USD";
 
-        public TransactionStatus Status { get; set; } = TransactionStatus.Pending;
+        public PastPort.Domain.Enums.TransactionStatus Status { get; set; } = PastPort.Domain.Enums.TransactionStatus.Pending;
 
         public PaymentGateway Gateway { get; set; }
 

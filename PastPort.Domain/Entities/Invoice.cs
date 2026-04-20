@@ -5,6 +5,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using PastPort.Domain.Enums;
 
 namespace PastPort.Domain.Entities
 {
@@ -41,7 +42,7 @@ namespace PastPort.Domain.Entities
         [MaxLength(3)]
         public string Currency { get; set; } = "USD";
 
-        public InvoiceStatus Status { get; set; } = InvoiceStatus.Draft;
+        public InvoiceStatus Status { get; set; } = Enums.InvoiceStatus.Draft;
 
         public DateTime IssuedAt { get; set; } = DateTime.UtcNow;
         public DateTime? PaidAt { get; set; }
