@@ -1,0 +1,440 @@
+﻿// ============================================================
+//  SubscriptionService.cs — Core Business Logic
+//  Handles plan lookup, checkout initiation, activation,
+//  plan changes (with proration), and feature gating.
+// ============================================================
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using SubscriptionPayment.Application.DTOs;
+using SubscriptionPayment.Application.Interfaces;
+using SubscriptionPayment.Domain.Entities;
+using SubscriptionPayment.Domain.Enums;
+using SubscriptionPayment.Infrastructure.Data;
+
+namespace SubscriptionPayment.Application.Services;
+
+public class SubscriptionService : ISubscriptionService
+{
+    private readonly AppDbContext _db;
+    private readonly IPaymentService _paymentService;
+    private readonly ILogger<SubscriptionService> _logger;
+
+    public SubscriptionService(
+        AppDbContext db,
+        IPaymentService paymentService,
+        ILogger<SubscriptionService> logger)
+    {
+        _db = db;
+        _paymentService = paymentService;
+        _logger = logger;
+    }
+
+    // ────────────────────────────────────────────────────────
+    // GET PLANS
+    // ────────────────────────────────────────────────────────
+    public async Task<IEnumerable<PlanDto>> GetActivePlansAsync(CancellationToken ct = default)
+    {
+        var plans = await _db.Plans
+            .AsNoTracking()
+            .Where(p => p.IsActive && p.IsPublic)
+            .Include(p => p.PlanFeatures)
+                .ThenInclude(pf => pf.Feature)
+            .OrderBy(p => p.DisplayOrder)
+            .ToListAsync(ct);
+
+        return plans.Select(MapPlanToDto);
+    }
+
+    public async Task<PlanDto?> GetPlanByIdAsync(Guid planId, CancellationToken ct = default)
+    {
+        var plan = await _db.Plans
+            .AsNoTracking()
+            .Include(p => p.PlanFeatures).ThenInclude(pf => pf.Feature)
+            .FirstOrDefaultAsync(p => p.Id == planId && p.IsActive, ct);
+
+        return plan is null ? null : MapPlanToDto(plan);
+    }
+
+    // ────────────────────────────────────────────────────────
+    // GET ACTIVE SUBSCRIPTION
+    // ────────────────────────────────────────────────────────
+    public async Task<UserSubscriptionDto?> GetActiveSubscriptionAsync(
+        string userId, CancellationToken ct = default)
+    {
+        var sub = await GetActiveSubscriptionEntityAsync(userId, ct);
+        return sub is null ? null : MapSubscriptionToDto(sub);
+    }
+
+    // ────────────────────────────────────────────────────────
+    // INITIATE CHECKOUT — Step 1 of the payment flow
+    //
+    // Flow:
+    //   1. Validate the requested plan exists
+    //   2. Create UserSubscription with Status=PendingPayment
+    //   3. Create PaymentTransaction with Status=Pending
+    //   4. Call the payment gateway to create a session
+    //   5. Store the gateway payment URL on the transaction
+    //   6. Return the URL to the controller → frontend redirects user there
+    //
+    // IMPORTANT: The subscription is NOT active yet.
+    // Activation happens in the webhook handler.
+    // ────────────────────────────────────────────────────────
+    public async Task<InitiateCheckoutResponse> InitiateCheckoutAsync(
+        string userId,
+        InitiateCheckoutRequest request,
+        CancellationToken ct = default)
+    {
+        var plan = await _db.Plans.FindAsync(new object[] { request.PlanId }, ct)
+            ?? throw new InvalidOperationException($"Plan {request.PlanId} not found.");
+
+        if (!plan.IsActive)
+            throw new InvalidOperationException("Selected plan is not available.");
+
+        // ── If user already has an active sub, use ChangePlanAsync instead ──
+        var existingSub = await GetActiveSubscriptionEntityAsync(userId, ct);
+        if (existingSub is not null)
+            throw new InvalidOperationException(
+                "User already has an active subscription. Use the upgrade/downgrade endpoint.");
+
+        // ── Determine billing period dates ───────────────────
+        var (periodStart, periodEnd) = CalculateBillingPeriod(plan.BillingCycle);
+        DateTime? trialEnd = plan.TrialDays > 0
+            ? DateTime.UtcNow.AddDays(plan.TrialDays)
+            : null;
+
+        // ── 1. Create the Pending subscription ───────────────
+        var subscription = new UserSubscription
+        {
+            UserId = userId,
+            PlanId = plan.Id,
+            Status = SubscriptionStatus.PendingPayment,
+            CurrentPeriodStart = periodStart,
+            CurrentPeriodEnd = periodEnd,
+            TrialEnd = trialEnd,
+            AutoRenew = true
+        };
+        _db.UserSubscriptions.Add(subscription);
+
+        // ── 2. Create the Pending transaction ────────────────
+        // Price is 0 if the plan has a trial with no charge upfront
+        var chargeAmount = trialEnd.HasValue ? 0m : plan.Price;
+
+        var transaction = new PaymentTransaction
+        {
+            UserSubscriptionId = subscription.Id,
+            UserId = userId,
+            Amount = chargeAmount,
+            Currency = plan.Currency,
+            Status = TransactionStatus.Pending,
+            Gateway = request.Gateway
+        };
+        _db.PaymentTransactions.Add(transaction);
+
+        // ── 3. Create a Draft invoice ─────────────────────────
+        var invoice = CreateDraftInvoice(userId, subscription.Id, transaction.Id, plan);
+        _db.Invoices.Add(invoice);
+
+        await _db.SaveChangesAsync(ct);
+
+        // ── 4. Call gateway to get a payment URL ─────────────
+        string paymentUrl;
+        string gatewayTxId;
+
+        try
+        {
+            (paymentUrl, gatewayTxId) = await _paymentService.CreateCheckoutSessionAsync(
+                subscription.Id,
+                transaction.Id,
+                chargeAmount,
+                plan.Currency,
+                request.SuccessUrl,
+                request.CancelUrl,
+                ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Gateway session creation failed for transaction {TxId}", transaction.Id);
+            // Mark transaction as cancelled; don't expose gateway errors to client
+            transaction.Status = TransactionStatus.Cancelled;
+            transaction.FailureReason = "Gateway session creation failed.";
+            subscription.Status = SubscriptionStatus.PendingPayment; // keep for retry
+            await _db.SaveChangesAsync(ct);
+            throw new InvalidOperationException("Payment gateway unavailable. Please try again.");
+        }
+
+        // ── 5. Persist gateway IDs ────────────────────────────
+        transaction.GatewayTransactionId = gatewayTxId;
+        transaction.GatewayPaymentUrl = paymentUrl;
+        await _db.SaveChangesAsync(ct);
+
+        _logger.LogInformation(
+            "Checkout initiated. UserId={UserId} PlanId={PlanId} TxId={TxId}",
+            userId, plan.Id, transaction.Id);
+
+        return new InitiateCheckoutResponse(
+            TransactionId: transaction.Id,
+            SubscriptionId: subscription.Id,
+            PaymentUrl: paymentUrl,
+            Status: "PendingPayment"
+        );
+    }
+
+    // ────────────────────────────────────────────────────────
+    // ACTIVATE SUBSCRIPTION — Called by webhook handler on success
+    // ────────────────────────────────────────────────────────
+    public async Task ActivateSubscriptionAsync(Guid transactionId, CancellationToken ct = default)
+    {
+        var tx = await _db.PaymentTransactions
+            .Include(t => t.UserSubscription)
+            .Include(t => t.Invoice)
+            .FirstOrDefaultAsync(t => t.Id == transactionId, ct)
+            ?? throw new InvalidOperationException($"Transaction {transactionId} not found.");
+
+        var sub = tx.UserSubscription;
+
+        // Guard against re-processing
+        if (sub.Status == SubscriptionStatus.Active)
+        {
+            _logger.LogWarning("Subscription {SubId} is already active. Skipping.", sub.Id);
+            return;
+        }
+
+        // ── Activate the subscription ─────────────────────────
+        sub.Status = SubscriptionStatus.Active;
+        sub.UpdatedAt = DateTime.UtcNow;
+
+        // ── Finalize the transaction ──────────────────────────
+        tx.Status = TransactionStatus.Success;
+        tx.ProcessedAt = DateTime.UtcNow;
+
+        // ── Mark invoice as Paid ──────────────────────────────
+        if (tx.Invoice is not null)
+        {
+            tx.Invoice.Status = InvoiceStatus.Paid;
+            tx.Invoice.PaidAt = DateTime.UtcNow;
+        }
+
+        await _db.SaveChangesAsync(ct);
+
+        _logger.LogInformation(
+            "Subscription activated. SubId={SubId} UserId={UserId}",
+            sub.Id, sub.UserId);
+    }
+
+    // ────────────────────────────────────────────────────────
+    // HANDLE FAILED PAYMENT — Called by webhook handler on failure
+    // ────────────────────────────────────────────────────────
+    public async Task HandleFailedPaymentAsync(
+        Guid transactionId, string reason, CancellationToken ct = default)
+    {
+        var tx = await _db.PaymentTransactions
+            .Include(t => t.UserSubscription)
+            .FirstOrDefaultAsync(t => t.Id == transactionId, ct)
+            ?? throw new InvalidOperationException($"Transaction {transactionId} not found.");
+
+        tx.Status = TransactionStatus.Failed;
+        tx.FailureReason = reason;
+        tx.ProcessedAt = DateTime.UtcNow;
+
+        // If subscription was never activated, mark it as PendingPayment
+        // so the user can retry. If it was active (renewal failure), mark PastDue.
+        var sub = tx.UserSubscription;
+        sub.Status = sub.Status == SubscriptionStatus.Active
+            ? SubscriptionStatus.PastDue
+            : SubscriptionStatus.PendingPayment;
+        sub.UpdatedAt = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync(ct);
+
+        _logger.LogWarning(
+            "Payment failed. TxId={TxId} SubId={SubId} Reason={Reason}",
+            transactionId, sub.Id, reason);
+    }
+
+    // ────────────────────────────────────────────────────────
+    // CHANGE PLAN (Upgrade / Downgrade)
+    //
+    // Proration Logic:
+    //   Credit = OldPlanDailyRate × DaysRemaining
+    //   Charge = NewPlanPrice − Credit  (0 if negative → credit stored)
+    // ────────────────────────────────────────────────────────
+    public async Task<UserSubscriptionDto> ChangePlanAsync(
+        string userId,
+        UpgradePlanRequest request,
+        CancellationToken ct = default)
+    {
+        var currentSub = await GetActiveSubscriptionEntityAsync(userId, ct, includePlan: true)
+            ?? throw new InvalidOperationException("No active subscription found.");
+
+        if (currentSub.PlanId == request.NewPlanId)
+            throw new InvalidOperationException("User is already on this plan.");
+
+        var newPlan = await _db.Plans.FindAsync(new object[] { request.NewPlanId }, ct)
+            ?? throw new InvalidOperationException($"Plan {request.NewPlanId} not found.");
+
+        decimal prorationCredit = 0;
+        if (request.ApplyProration)
+        {
+            var totalDays = (currentSub.CurrentPeriodEnd - currentSub.CurrentPeriodStart).TotalDays;
+            var daysRemaining = (currentSub.CurrentPeriodEnd - DateTime.UtcNow).TotalDays;
+            var dailyRate = currentSub.Plan.Price / (decimal)totalDays;
+            prorationCredit = Math.Max(0, dailyRate * (decimal)daysRemaining);
+        }
+
+        // ── Record old plan for audit trail ──────────────────
+        currentSub.PreviousPlanId = currentSub.PlanId;
+        currentSub.PlanId = newPlan.Id;
+        currentSub.ProrationCredit = prorationCredit;
+
+        // Reset billing period to now
+        var (newStart, newEnd) = CalculateBillingPeriod(newPlan.BillingCycle);
+        currentSub.CurrentPeriodStart = newStart;
+        currentSub.CurrentPeriodEnd = newEnd;
+        currentSub.UpdatedAt = DateTime.UtcNow;
+
+        // ── New transaction for the prorated charge ───────────
+        var chargeAmount = Math.Max(0, newPlan.Price - prorationCredit);
+        var newTx = new PaymentTransaction
+        {
+            UserSubscriptionId = currentSub.Id,
+            UserId = userId,
+            Amount = chargeAmount,
+            Currency = newPlan.Currency,
+            Status = TransactionStatus.Pending,
+            // In production, charge this via gateway immediately for upgrades
+        };
+        _db.PaymentTransactions.Add(newTx);
+        await _db.SaveChangesAsync(ct);
+
+        _logger.LogInformation(
+            "Plan changed. UserId={UserId} OldPlan={OldPlan} NewPlan={NewPlan} Credit={Credit}",
+            userId, currentSub.PreviousPlanId, newPlan.Id, prorationCredit);
+
+        return MapSubscriptionToDto(currentSub);
+    }
+
+    // ────────────────────────────────────────────────────────
+    // CANCEL SUBSCRIPTION
+    // Sets CancelledAt; access continues until CurrentPeriodEnd.
+    // ────────────────────────────────────────────────────────
+    public async Task CancelSubscriptionAsync(string userId, CancellationToken ct = default)
+    {
+        var sub = await GetActiveSubscriptionEntityAsync(userId, ct)
+            ?? throw new InvalidOperationException("No active subscription to cancel.");
+
+        sub.Status = SubscriptionStatus.Cancelled;
+        sub.AutoRenew = false;
+        sub.CancelledAt = DateTime.UtcNow;
+        sub.UpdatedAt = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync(ct);
+    }
+
+    // ────────────────────────────────────────────────────────
+    // FEATURE ACCESS GATE
+    // ────────────────────────────────────────────────────────
+    public async Task<bool> HasFeatureAccessAsync(
+        string userId, string featureSlug, CancellationToken ct = default)
+    {
+        var sub = await GetActiveSubscriptionEntityAsync(userId, ct);
+
+        // No active subscription → no access
+        if (sub is null) return false;
+
+        // Subscription expired
+        if (sub.CurrentPeriodEnd < DateTime.UtcNow) return false;
+
+        // Check if the plan includes the requested feature
+        return await _db.PlanFeatures
+            .AsNoTracking()
+            .AnyAsync(pf =>
+                pf.PlanId == sub.PlanId &&
+                pf.Feature.Slug == featureSlug &&
+                pf.IsEnabled,
+                ct);
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // PRIVATE HELPERS
+    // ──────────────────────────────────────────────────────────────
+
+    private async Task<UserSubscription?> GetActiveSubscriptionEntityAsync(
+        string userId, CancellationToken ct, bool includePlan = false)
+    {
+        var query = _db.UserSubscriptions
+            .Where(s => s.UserId == userId &&
+                        (s.Status == SubscriptionStatus.Active ||
+                         s.Status == SubscriptionStatus.Trialing ||
+                         s.Status == SubscriptionStatus.Cancelled));  // Cancelled = still has access
+
+        if (includePlan)
+            query = query.Include(s => s.Plan);
+
+        return await query.FirstOrDefaultAsync(ct);
+    }
+
+    private static (DateTime Start, DateTime End) CalculateBillingPeriod(BillingCycle cycle)
+    {
+        var start = DateTime.UtcNow;
+        var end = cycle switch
+        {
+            BillingCycle.Monthly => start.AddMonths(1),
+            BillingCycle.Yearly => start.AddYears(1),
+            BillingCycle.Weekly => start.AddDays(7),
+            BillingCycle.OneTime => DateTime.MaxValue,
+            _ => start.AddMonths(1)
+        };
+        return (start, end);
+    }
+
+    private static Invoice CreateDraftInvoice(
+        string userId, Guid subscriptionId, Guid transactionId, Plan plan)
+    {
+        // Invoice number format: INV-YYYYMMDD-{random 6 chars}
+        var invoiceNumber = $"INV-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..6].ToUpper()}";
+        return new Invoice
+        {
+            InvoiceNumber = invoiceNumber,
+            UserSubscriptionId = subscriptionId,
+            PaymentTransactionId = transactionId,
+            UserId = userId,
+            SubTotal = plan.Price,
+            TotalAmount = plan.Price,
+            Currency = plan.Currency,
+            Status = InvoiceStatus.Draft,
+            DueDate = DateTime.UtcNow.AddDays(1)
+        };
+    }
+
+    private static PlanDto MapPlanToDto(Plan plan) => new(
+        plan.Id,
+        plan.Name,
+        plan.Description,
+        plan.Price,
+        plan.Currency,
+        plan.BillingCycle,
+        plan.TrialDays,
+        plan.DisplayOrder,
+        plan.PlanFeatures
+            .Where(pf => pf.Feature.IsActive)
+            .Select(pf => new FeatureDto(
+                pf.Feature.Id,
+                pf.Feature.Name,
+                pf.Feature.Slug,
+                pf.Feature.Description,
+                pf.Limit,
+                pf.IsEnabled))
+            .ToList()
+    );
+
+    private static UserSubscriptionDto MapSubscriptionToDto(UserSubscription sub) => new(
+        sub.Id,
+        MapPlanToDto(sub.Plan),
+        sub.Status,
+        sub.CurrentPeriodStart,
+        sub.CurrentPeriodEnd,
+        sub.TrialEnd,
+        sub.AutoRenew,
+        sub.CancelledAt
+    );
+}
