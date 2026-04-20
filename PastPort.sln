@@ -13,7 +13,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PastPort.Infrastructure", "
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PastPort.Application", "PastPort.Application\PastPort.Application.csproj", "{CB4114B3-5F59-4D03-8A8F-980502348FFF}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SubscriptionPaymen", "SubscriptionPaymen", "{F5A5F7D7-59D6-41F9-9FD6-43FF8D104F76}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SubscriptionPayment", "SubscriptionPayment", "{F5A5F7D7-59D6-41F9-9FD6-43FF8D104F76}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Domain", "Domain", "{37FAD8CD-BA2D-43A2-8553-C012C842564B}"
 	ProjectSection(SolutionItems) = preProject
