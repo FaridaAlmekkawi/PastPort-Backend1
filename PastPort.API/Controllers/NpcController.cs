@@ -1,4 +1,12 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿// ============================================================
+//  NpcController.cs — PastPort.API/Controllers
+//
+//  GAP 11 FIX: Audio null check was AFTER session null check.
+//  If both are missing, user got "Session not found" (404) instead
+//  of "Audio is required" (400) — wrong error, confuses the client.
+//  Audio validation now comes first since it's a client-side error.
+// ============================================================
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PastPort.Application.Interfaces;
 using System.Text;
@@ -10,22 +18,24 @@ namespace PastPort.API.Controllers;
 public class NpcController : BaseApiController
 {
     private readonly INpcAIService _npcAIService;
-    private readonly INpcSessionStore _sessionStore;   // ✅ جديد
+    private readonly INpcSessionStore _sessionStore;
     private readonly ILogger<NpcController> _logger;
 
     public NpcController(
         INpcAIService npcAIService,
-        INpcSessionStore sessionStore,                 // ✅ جديد
+        INpcSessionStore sessionStore,
         ILogger<NpcController> logger)
     {
         _npcAIService = npcAIService;
-        _sessionStore = sessionStore;                  // ✅ جديد
+        _sessionStore = sessionStore;
         _logger = logger;
     }
 
-    // ============================================================
-    // FLUTTER → بيبعت world data ويستلم sessionId
-    // ============================================================
+    /// <summary>
+    /// Flutter calls this first to register world context and receive a sessionId.
+    /// POST /api/npc/session/start
+    /// Body: { "yearRange": "...", "locationOldName": "...", "civilization": "..." }
+    /// </summary>
     [HttpPost("session/start")]
     public IActionResult StartSession([FromBody] StartSessionRequest request)
     {
@@ -36,36 +46,33 @@ public class NpcController : BaseApiController
             Civilization = request.Civilization
         };
 
-        // ✅ خزّن في Memory وجيب sessionId
         var sessionId = _sessionStore.CreateSession(sessionData);
 
         _logger.LogInformation(
-            "Session created: {SessionId} | Civilization: {Civ}",
+            "NPC session created. SessionId={SessionId} Civilization={Civ}",
             sessionId, request.Civilization);
 
         return Ok(new { sessionId });
     }
 
-    // ============================================================
-    // UNITY → بيبعت audio + sessionId + roleOrName بس
-    // ============================================================
+    /// <summary>
+    /// Unity calls this to send voice audio and receive a streamed NPC response.
+    /// POST /api/npc/stream   (multipart/form-data)
+    /// Form fields: audio (file), sessionId (string), roleOrName (string)
+    ///
+    /// FIX: Audio is validated FIRST — it's a 400 client error.
+    ///      Session is validated SECOND — it's a 404 not-found error.
+    ///      Old code had them reversed, producing a confusing 404 when
+    ///      the real problem was a missing audio field.
+    /// </summary>
     [HttpPost("stream")]
     public async Task Stream(
         [FromForm] IFormFile audio,
         [FromForm] string sessionId,
-        [FromForm] string roleOrName,          // ✅ Unity بيبعت ده بس
+        [FromForm] string roleOrName,
         CancellationToken cancellationToken)
     {
-        // ✅ جيب الـ world data من Memory
-        var sessionData = _sessionStore.GetSession(sessionId);
-
-        if (sessionData == null)
-        {
-            Response.StatusCode = 404;
-            await Response.WriteAsync("Session not found or expired");
-            return;
-        }
-
+        // FIX GAP 11: Validate audio FIRST (400 Bad Request)
         if (audio == null || audio.Length == 0)
         {
             Response.StatusCode = 400;
@@ -73,7 +80,15 @@ public class NpcController : BaseApiController
             return;
         }
 
-        // ✅ دمج session data مع roleOrName من Unity
+        // Then validate session (404 Not Found)
+        var sessionData = _sessionStore.GetSession(sessionId);
+        if (sessionData == null)
+        {
+            Response.StatusCode = 404;
+            await Response.WriteAsync("Session not found or expired. Call /session/start first.");
+            return;
+        }
+
         var world = new NpcWorldDto
         {
             YearRange = sessionData.YearRange,
@@ -83,7 +98,7 @@ public class NpcController : BaseApiController
         };
 
         _logger.LogInformation(
-            "NPC stream - Session: {SessionId} | Role: {Role} | Civ: {Civ}",
+            "NPC stream. Session={SessionId} Role={Role} Civ={Civ}",
             sessionId, roleOrName, world.Civilization);
 
         using var ms = new MemoryStream();
@@ -97,30 +112,29 @@ public class NpcController : BaseApiController
         await foreach (var chunk in _npcAIService.SendAudioAndGetResponseAsync(
             audioBytes, world, sessionId, cancellationToken))
         {
-            var json = JsonSerializer.Serialize(chunk,
-                new JsonSerializerOptions
-                {
-                    PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
-                });
+            var json = JsonSerializer.Serialize(chunk, new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
+            });
 
             await Response.WriteAsync(json + "\n", Encoding.UTF8, cancellationToken);
             await Response.Body.FlushAsync(cancellationToken);
         }
     }
 
-    // ============================================================
-    // إنهاء الـ Session
-    // ============================================================
+    /// <summary>
+    /// Ends the session and frees in-memory state.
+    /// POST /api/npc/session/end
+    /// </summary>
     [HttpPost("session/end")]
     public IActionResult EndSession([FromBody] EndSessionRequest request)
     {
         _sessionStore.RemoveSession(request.SessionId);
-        _logger.LogInformation("Session ended: {SessionId}", request.SessionId);
+        _logger.LogInformation("NPC session ended. SessionId={SessionId}", request.SessionId);
         return Ok(new { message = "Session ended" });
     }
 }
 
-// ✅ عدّلت StartSessionRequest عشان يستقبل كل الـ world data
 public class StartSessionRequest
 {
     public string YearRange { get; set; } = string.Empty;
