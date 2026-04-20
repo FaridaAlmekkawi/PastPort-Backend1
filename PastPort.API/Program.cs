@@ -20,7 +20,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using PastPort.API.Extensions;
 using PastPort.Application.Common;
-using PastPort.Application.Identity;
+using PastPort.Infrastructure.Identity; 
 using PastPort.Application.Interfaces;
 using PastPort.Domain.Entities;
 using PastPort.Domain.Interfaces;
@@ -29,7 +29,7 @@ using PastPort.Infrastructure.Data.Repositories;
 using PastPort.Infrastructure.ExternalServices.AI;
 using PastPort.Infrastructure.ExternalServices.Payment;
 using PastPort.Infrastructure.ExternalServices.Storage;
-using PastPort.Infrastructure.Identity;
+
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);

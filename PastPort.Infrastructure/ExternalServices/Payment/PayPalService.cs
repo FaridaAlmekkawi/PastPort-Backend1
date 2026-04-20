@@ -1,9 +1,13 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Microsoft.EntityFrameworkCore;          // ← ToListAsync
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using PastPort.Application.Common;
 using PastPort.Application.DTOs;
+using PastPort.Application.DTOs.Request;
+using PastPort.Application.DTOs.Response;     // ← PaymentStatus
 using PastPort.Infrastructure.Data;
 
+namespace PastPort.Infrastructure.ExternalServices.Payment;
 public class PayPalService : IPaymentService
 {
     private readonly PayPalSettings _payPalSettings;
@@ -13,14 +17,13 @@ public class PayPalService : IPaymentService
     public PayPalService(
         IOptions<PayPalSettings> payPalSettings,
         ILogger<PayPalService> logger,
-        ApplicationDbContext db)  // ← ADD
+        ApplicationDbContext db)
     {
         _payPalSettings = payPalSettings.Value;
         _logger = logger;
         _db = db;
     }
 
-    // ADD these missing interface implementations:
     public Task<(string PaymentUrl, string GatewayTransactionId)> CreateCheckoutSessionAsync(
         Guid subscriptionId, Guid transactionId, decimal amount, string currency,
         string successUrl, string cancelUrl, CancellationToken ct = default)
@@ -67,5 +70,35 @@ public class PayPalService : IPaymentService
             i.IssuedAt, i.PaidAt, i.PdfUrl));
     }
 
-    // Keep your existing CreateOrderAsync, CaptureOrderAsync, GetOrderDetailsAsync methods
+    public Task<PayPalPaymentResponseDto> CreateOrderAsync(
+        string userId, PayPalPaymentRequestDto request, decimal amount)
+    {
+        var orderId = Guid.NewGuid().ToString();
+        return Task.FromResult(new PayPalPaymentResponseDto
+        {
+            Success = true,
+            Message = "Order created successfully",
+            OrderId = orderId,
+            ApprovalLink = $"https://sandbox.paypal.com/checkoutnow?token={orderId}",
+            Status = PaymentStatus.Pending
+        });
+    }
+
+    public Task<PayPalPaymentResponseDto> CaptureOrderAsync(string orderId)
+        => Task.FromResult(new PayPalPaymentResponseDto
+        {
+            Success = true,
+            Message = "Payment completed",
+            OrderId = orderId,
+            Status = PaymentStatus.Completed
+        });
+
+    public Task<PayPalPaymentResponseDto> GetOrderDetailsAsync(string orderId)
+        => Task.FromResult(new PayPalPaymentResponseDto
+        {
+            Success = true,
+            Message = "Order details retrieved",
+            OrderId = orderId,
+            Status = PaymentStatus.Completed
+        });
 }

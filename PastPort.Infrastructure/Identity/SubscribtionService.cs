@@ -122,7 +122,7 @@ namespace PastPort.Infrastructure.Identity
                 UserId = userId,
                 Amount = chargeAmount,
                 Currency = plan.Currency,
-                Status = System.Transactions.TransactionStatus.Pending,
+                Status = (DomainTransactionStatus)(System.Transactions.TransactionStatus)TransactionStatus.Pending,
                 Gateway = request.Gateway
             };
             _db.PaymentTransactions.Add(transaction);

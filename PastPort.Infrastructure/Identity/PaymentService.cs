@@ -116,6 +116,32 @@ namespace PastPort.Infrastructure.Identity
                 throw;
             }
         }
+        public async Task<IEnumerable<TransactionDto>> GetTransactionHistoryAsync(
+    string userId, CancellationToken ct = default)
+        {
+            var txs = await _db.PaymentTransactions
+                .Where(t => t.UserId == userId)
+                .OrderByDescending(t => t.CreatedAt)
+                .ToListAsync(ct);
+
+            return txs.Select(t => new TransactionDto(
+                t.Id, t.Amount, t.Currency, t.Status, t.Gateway,
+                t.GatewayTransactionId, t.FailureReason, t.CreatedAt, t.ProcessedAt));
+        }
+
+        public async Task<IEnumerable<InvoiceDto>> GetInvoicesAsync(
+            string userId, CancellationToken ct = default)
+        {
+            var invoices = await _db.Invoices
+                .Where(i => i.UserId == userId)
+                .OrderByDescending(i => i.IssuedAt)
+                .ToListAsync(ct);
+
+            return invoices.Select(i => new InvoiceDto(
+                i.Id, i.InvoiceNumber, i.SubTotal, i.TaxAmount,
+                i.DiscountAmount, i.TotalAmount, i.Currency, i.Status,
+                i.IssuedAt, i.PaidAt, i.PdfUrl));
+        }
 
         // ... بقية الدوال (GetTransactionHistoryAsync و GetInvoicesAsync) تظل كما هي مع تغيير _db ...
         // تأكد من تغيير return txs.Select ليتوافق مع الـ DTO الخاص بك
