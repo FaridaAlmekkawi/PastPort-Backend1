@@ -21,6 +21,13 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Domain", "Domain", "{37FAD8
 		Enums.cs = Enums.cs
 	EndProjectSection
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Infrastructure", "Infrastructure", "{D45F0B09-E161-468D-BC4B-561AFCA00F73}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Data", "Data", "{BD53104C-27AB-4CF5-BA55-83F2DB6C3728}"
+	ProjectSection(SolutionItems) = preProject
+		AppDbContext.cs = AppDbContext.cs
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -53,5 +60,7 @@ Global
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{37FAD8CD-BA2D-43A2-8553-C012C842564B} = {F5A5F7D7-59D6-41F9-9FD6-43FF8D104F76}
+		{D45F0B09-E161-468D-BC4B-561AFCA00F73} = {F5A5F7D7-59D6-41F9-9FD6-43FF8D104F76}
+		{BD53104C-27AB-4CF5-BA55-83F2DB6C3728} = {D45F0B09-E161-468D-BC4B-561AFCA00F73}
 	EndGlobalSection
 EndGlobal
