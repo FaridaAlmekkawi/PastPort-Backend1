@@ -13,15 +13,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PastPort.Infrastructure", "
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PastPort.Application", "PastPort.Application\PastPort.Application.csproj", "{CB4114B3-5F59-4D03-8A8F-980502348FFF}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SubscriptionPayment", "SubscriptionPayment", "{F5A5F7D7-59D6-41F9-9FD6-43FF8D104F76}"
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "API", "API", "{87DA3874-3B20-492E-94D9-2A511B31EE70}"
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Filters", "Filters", "{A767B16D-8ABB-4E8E-90BA-213B06D37D2B}"
-	ProjectSection(SolutionItems) = preProject
-		RequiresFeatureAttribute.cs = RequiresFeatureAttribute.cs
-	EndProjectSection
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -51,9 +42,5 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
-	EndGlobalSection
-	GlobalSection(NestedProjects) = preSolution
-		{87DA3874-3B20-492E-94D9-2A511B31EE70} = {F5A5F7D7-59D6-41F9-9FD6-43FF8D104F76}
-		{A767B16D-8ABB-4E8E-90BA-213B06D37D2B} = {87DA3874-3B20-492E-94D9-2A511B31EE70}
 	EndGlobalSection
 EndGlobal
