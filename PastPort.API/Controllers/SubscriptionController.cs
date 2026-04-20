@@ -2,6 +2,9 @@
 using Microsoft.AspNetCore.Mvc;
 using PastPort.Application.Interfaces;
 using System.Security.Claims;
+using PastPort.Application.DTOs;
+
+namespace PastPort.API.Controllers;
 
 [ApiController]
 [Route("api/subscriptions")]
