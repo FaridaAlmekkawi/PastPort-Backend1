@@ -4,7 +4,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using PastPort.Domain.Entities;
+using PastPort.Domain.Enums;
 using PastPort.Domain.Interfaces;
+using PastPort.Application.DTOs;
+using PastPort.Infrastructure.Data;
+
 
 
 namespace PastPort.Infrastructure.Identity
