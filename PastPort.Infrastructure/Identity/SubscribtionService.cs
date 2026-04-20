@@ -1,27 +1,21 @@
 ﻿using Microsoft.Extensions.Logging;
 using PastPort.Application.DTOs;
 using Stripe;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Transactions;
 using PastPort.Domain.Entities;
 using PastPort.Domain.Enums;
-using PastPort.Domain.Interfaces;
 using PastPort.Infrastructure.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace PastPort.Infrastructure.Identity
 {
     public class SubscriptionService : ISubscriptionService
     {
-        private readonly AppDbContext _db;
+        private readonly ApplicationDbContext _db;
         private readonly IPaymentService _paymentService;
         private readonly ILogger<SubscriptionService> _logger;
 
         public SubscriptionService(
-            AppDbContext db,
+            ApplicationDbContext db,
             IPaymentService paymentService,
             ILogger<SubscriptionService> logger)
         {
@@ -54,6 +48,7 @@ namespace PastPort.Infrastructure.Identity
                 .FirstOrDefaultAsync(p => p.Id == planId && p.IsActive, ct);
 
             return plan is null ? null : MapPlanToDto(plan);
+            
         }
 
         // ────────────────────────────────────────────────────────
@@ -301,7 +296,7 @@ namespace PastPort.Infrastructure.Identity
                 UserId = userId,
                 Amount = chargeAmount,
                 Currency = newPlan.Currency,
-                Status = TransactionStatus.Pending,
+                Status =TransactionStatus.Pending,
                 // In production, charge this via gateway immediately for upgrades
             };
             _db.PaymentTransactions.Add(newTx);
@@ -388,12 +383,12 @@ namespace PastPort.Infrastructure.Identity
             return (start, end);
         }
 
-        private static Invoice CreateDraftInvoice(
-            string userId, Guid subscriptionId, Guid transactionId, Plan plan)
+        private static PastPort.Domain.Entities.Invoice CreateDraftInvoice(
+            string userId, Guid subscriptionId, Guid transactionId, PastPort.Domain.Entities.Plan plan)
         {
             // Invoice number format: INV-YYYYMMDD-{random 6 chars}
             var invoiceNumber = $"INV-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..6].ToUpper()}";
-            return new Invoice
+            return new PastPort.Domain.Entities.Invoice
             {
                 InvoiceNumber = invoiceNumber,
                 UserSubscriptionId = subscriptionId,
