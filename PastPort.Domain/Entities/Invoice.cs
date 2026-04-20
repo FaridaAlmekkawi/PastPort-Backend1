@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations.Schema;
+using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -9,37 +11,49 @@ namespace PastPort.Domain.Entities
 {
     public class Invoice
     {
-        public Guid Id { get; set; }
-        public string InvoiceNumber { get; set; } = string.Empty; // INV-2025-0001
+        [Key]
+        public Guid Id { get; set; } = Guid.NewGuid();
 
-        public string UserId { get; set; } = string.Empty;
-        public ApplicationUser User { get; set; } = null!;
+        /// <summary>Human-friendly invoice number: INV-2024-000001</summary>
+        [Required, MaxLength(50)]
+        public string InvoiceNumber { get; set; } = default!;
 
-        public Guid? PaymentId { get; set; }
-        public Payment? Payment { get; set; }
+        public Guid UserSubscriptionId { get; set; }
+        public UserSubscription UserSubscription { get; set; } = default!;
 
-        public Guid? SubscriptionId { get; set; }
-        public Subscription? Subscription { get; set; }
+        public Guid? PaymentTransactionId { get; set; }
+        public PaymentTransaction? PaymentTransaction { get; set; }
 
-        // Invoice Details
-        public decimal Amount { get; set; }
-        public decimal TaxAmount { get; set; }
+        [Required]
+        public string UserId { get; set; } = default!;
+
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal SubTotal { get; set; }
+
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal TaxAmount { get; set; } = 0;
+
+        [Column(TypeName = "decimal(18,2)")]
+        public decimal DiscountAmount { get; set; } = 0;
+
+        [Column(TypeName = "decimal(18,2)")]
         public decimal TotalAmount { get; set; }
+
+        [MaxLength(3)]
         public string Currency { get; set; } = "USD";
 
-        public InvoiceStatus Status { get; set; }
+        public InvoiceStatus Status { get; set; } = InvoiceStatus.Draft;
 
-        // Dates
         public DateTime IssuedAt { get; set; } = DateTime.UtcNow;
-        public DateTime DueDate { get; set; }
         public DateTime? PaidAt { get; set; }
+        public DateTime? DueDate { get; set; }
 
-        // URLs
+        /// <summary>Billing address snapshot at time of purchase.</summary>
+        public string? BillingAddressJson { get; set; }
+
+        /// <summary>Path or URL to generated PDF.</summary>
+        [MaxLength(500)]
         public string? PdfUrl { get; set; }
-        public string? HostedInvoiceUrl { get; set; } // Stripe hosted invoice
-
-        // Items
-        public List<InvoiceItem> Items { get; set; } = new();
     }
 
 }
