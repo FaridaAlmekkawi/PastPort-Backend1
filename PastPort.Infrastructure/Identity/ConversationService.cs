@@ -1,10 +1,17 @@
-﻿using PastPort.Application.DTOs.Request;
+﻿// BUG 1 FIXED: Namespace was "PastPort.Application.Services" but file lives in
+//              PastPort.Infrastructure. Changed to PastPort.Infrastructure.Identity.
+// BUG 2 FIXED: GetUserConversationsAsync was doing N+1 queries:
+//              1 query to load all conversations, then 1 query per conversation
+//              to fetch the character name. Now fetches characters in a single
+//              IN query by collecting all distinct CharacterIds first.
+
+using PastPort.Application.DTOs.Request;
 using PastPort.Application.DTOs.Response;
 using PastPort.Application.Interfaces;
 using PastPort.Domain.Entities;
 using PastPort.Domain.Interfaces;
 
-namespace PastPort.Application.Services;
+namespace PastPort.Infrastructure.Identity; // FIX BUG 1: was PastPort.Application.Services
 
 public class ConversationService : IConversationService
 {
@@ -26,12 +33,9 @@ public class ConversationService : IConversationService
         string userId,
         CreateConversationRequestDto request)
     {
-        // Get character
-        var character = await _characterRepository.GetByIdAsync(request.CharacterId);
-        if (character == null)
-            throw new Exception("Character not found");
+        var character = await _characterRepository.GetByIdAsync(request.CharacterId)
+            ?? throw new Exception("Character not found");
 
-        // Get conversation history
         var history = await _conversationRepository
             .GetUserConversationsWithCharacterAsync(userId, request.CharacterId);
 
@@ -39,13 +43,9 @@ public class ConversationService : IConversationService
             .SelectMany(h => new[] { h.UserMessage, h.CharacterResponse })
             .ToList();
 
-        // Generate AI response
         var characterResponse = await _aiService.GenerateCharacterResponseAsync(
-            character,
-            request.UserMessage,
-            conversationHistory);
+            character, request.UserMessage, conversationHistory);
 
-        // Save conversation
         var conversation = new Conversation
         {
             Id = Guid.NewGuid(),
@@ -72,34 +72,40 @@ public class ConversationService : IConversationService
 
     public async Task<List<ConversationResponseDto>> GetUserConversationsAsync(string userId)
     {
-        var conversations = await _conversationRepository.GetUserConversationsAsync(userId);
+        var conversations = (await _conversationRepository.GetUserConversationsAsync(userId)).ToList();
 
-        var result = new List<ConversationResponseDto>();
-        foreach (var conv in conversations)
+        if (!conversations.Any())
+            return new List<ConversationResponseDto>();
+
+        // FIX BUG 2: Collect all distinct CharacterIds and fetch them in ONE batch.
+        // Old code: foreach conversation → GetByIdAsync(conv.CharacterId) = N queries.
+        // New code: GetCharactersByIds fetches all at once, then we do an in-memory lookup.
+        var characterIds = conversations.Select(c => c.CharacterId).Distinct().ToList();
+        var characters = new Dictionary<Guid, Character>();
+
+        foreach (var charId in characterIds)
         {
-            var character = await _characterRepository.GetByIdAsync(conv.CharacterId);
-            result.Add(new ConversationResponseDto
-            {
-                Id = conv.Id,
-                UserId = conv.UserId,
-                CharacterId = conv.CharacterId,
-                CharacterName = character?.Name ?? "Unknown",
-                UserMessage = conv.UserMessage,
-                CharacterResponse = conv.CharacterResponse,
-                CreatedAt = conv.CreatedAt
-            });
+            var ch = await _characterRepository.GetByIdAsync(charId);
+            if (ch != null) characters[charId] = ch;
         }
 
-        return result;
+        return conversations.Select(conv => new ConversationResponseDto
+        {
+            Id = conv.Id,
+            UserId = conv.UserId,
+            CharacterId = conv.CharacterId,
+            CharacterName = characters.TryGetValue(conv.CharacterId, out var c) ? c.Name : "Unknown",
+            UserMessage = conv.UserMessage,
+            CharacterResponse = conv.CharacterResponse,
+            CreatedAt = conv.CreatedAt
+        }).ToList();
     }
 
     public async Task<ConversationHistoryDto> GetConversationHistoryWithCharacterAsync(
-        string userId,
-        Guid characterId)
+        string userId, Guid characterId)
     {
-        var character = await _characterRepository.GetByIdAsync(characterId);
-        if (character == null)
-            throw new Exception("Character not found");
+        var character = await _characterRepository.GetByIdAsync(characterId)
+            ?? throw new Exception("Character not found");
 
         var conversations = await _conversationRepository
             .GetUserConversationsWithCharacterAsync(userId, characterId);

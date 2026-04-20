@@ -1,10 +1,16 @@
-﻿using PastPort.Application.DTOs.Request;
+﻿// BUG 3 FIXED:
+//   - File was named "ScaneService.cs" (typo: "Scane" instead of "Scene").
+//     Rename to SceneService.cs.
+//   - Namespace was "PastPort.Application.Identity" (wrong project layer).
+//     Changed to PastPort.Infrastructure.Identity.
+
+using PastPort.Application.DTOs.Request;
 using PastPort.Application.DTOs.Response;
 using PastPort.Application.Interfaces;
 using PastPort.Domain.Entities;
 using PastPort.Domain.Interfaces;
 
-namespace PastPort.Application.Identity;
+namespace PastPort.Infrastructure.Identity; // FIX BUG 3: was PastPort.Application.Identity
 
 public class SceneService : ISceneService
 {
@@ -30,16 +36,13 @@ public class SceneService : ISceneService
         };
 
         await _sceneRepository.AddAsync(scene);
-
         return MapToResponseDto(scene);
     }
 
     public async Task<SceneResponseDto> GetSceneByIdAsync(Guid id)
     {
-        var scene = await _sceneRepository.GetSceneWithCharactersAsync(id);
-        if (scene == null)
-            throw new Exception("Scene not found");
-
+        var scene = await _sceneRepository.GetSceneWithCharactersAsync(id)
+            ?? throw new Exception("Scene not found");
         return MapToResponseDto(scene);
     }
 
@@ -63,66 +66,47 @@ public class SceneService : ISceneService
 
     public async Task<SceneResponseDto> UpdateSceneAsync(Guid id, UpdateSceneRequestDto request)
     {
-        var scene = await _sceneRepository.GetByIdAsync(id);
-        if (scene == null)
-            throw new Exception("Scene not found");
+        var scene = await _sceneRepository.GetByIdAsync(id)
+            ?? throw new Exception("Scene not found");
 
-        if (!string.IsNullOrEmpty(request.Title))
-            scene.Title = request.Title;
-
-        if (!string.IsNullOrEmpty(request.Era))
-            scene.Era = request.Era;
-
-        if (!string.IsNullOrEmpty(request.Location))
-            scene.Location = request.Location;
-
-        if (!string.IsNullOrEmpty(request.Description))
-            scene.Description = request.Description;
-
-        if (!string.IsNullOrEmpty(request.EnvironmentPrompt))
-            scene.EnvironmentPrompt = request.EnvironmentPrompt;
-
-        if (request.Model3DUrl != null)
-            scene.Model3DUrl = request.Model3DUrl;
+        if (!string.IsNullOrEmpty(request.Title)) scene.Title = request.Title;
+        if (!string.IsNullOrEmpty(request.Era)) scene.Era = request.Era;
+        if (!string.IsNullOrEmpty(request.Location)) scene.Location = request.Location;
+        if (!string.IsNullOrEmpty(request.Description)) scene.Description = request.Description;
+        if (!string.IsNullOrEmpty(request.EnvironmentPrompt)) scene.EnvironmentPrompt = request.EnvironmentPrompt;
+        if (request.Model3DUrl != null) scene.Model3DUrl = request.Model3DUrl;
 
         scene.UpdatedAt = DateTime.UtcNow;
-
         await _sceneRepository.UpdateAsync(scene);
-
         return MapToResponseDto(scene);
     }
 
     public async Task<bool> DeleteSceneAsync(Guid id)
     {
-        var scene = await _sceneRepository.GetByIdAsync(id);
-        if (scene == null)
-            throw new Exception("Scene not found");
-
+        var scene = await _sceneRepository.GetByIdAsync(id)
+            ?? throw new Exception("Scene not found");
         await _sceneRepository.DeleteAsync(scene);
         return true;
     }
 
-    private static SceneResponseDto MapToResponseDto(HistoricalScene scene)
+    private static SceneResponseDto MapToResponseDto(HistoricalScene scene) => new()
     {
-        return new SceneResponseDto
+        Id = scene.Id,
+        Title = scene.Title,
+        Era = scene.Era,
+        Location = scene.Location,
+        Description = scene.Description,
+        EnvironmentPrompt = scene.EnvironmentPrompt,
+        Model3DUrl = scene.Model3DUrl,
+        CreatedAt = scene.CreatedAt,
+        UpdatedAt = scene.UpdatedAt,
+        CharactersCount = scene.Characters?.Count ?? 0,
+        Characters = scene.Characters?.Select(c => new CharacterSummaryDto
         {
-            Id = scene.Id,
-            Title = scene.Title,
-            Era = scene.Era,
-            Location = scene.Location,
-            Description = scene.Description,
-            EnvironmentPrompt = scene.EnvironmentPrompt,
-            Model3DUrl = scene.Model3DUrl,
-            CreatedAt = scene.CreatedAt,
-            UpdatedAt = scene.UpdatedAt,
-            CharactersCount = scene.Characters?.Count ?? 0,
-            Characters = scene.Characters?.Select(c => new CharacterSummaryDto
-            {
-                Id = c.Id,
-                Name = c.Name,
-                Role = c.Role,
-                AvatarUrl = c.AvatarUrl
-            }).ToList() ?? new List<CharacterSummaryDto>()
-        };
-    }
+            Id = c.Id,
+            Name = c.Name,
+            Role = c.Role,
+            AvatarUrl = c.AvatarUrl
+        }).ToList() ?? new List<CharacterSummaryDto>()
+    };
 }

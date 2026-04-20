@@ -1,3 +1,9 @@
+﻿// BUG 19 FIXED: Added ClaimTypes.NameIdentifier to JWT claims.
+// ROOT CAUSE of all controllers returning Unauthorized() silently:
+// Controllers call User.FindFirst(ClaimTypes.NameIdentifier) but the token
+// only had "sub" — in .NET 6+ the automatic sub→NameIdentifier mapping is OFF.
+// Also removed the redundant "uid" duplicate claim.
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -36,25 +42,30 @@ public class JwtTokenService : IJwtTokenService
 
         var claims = new List<Claim>
         {
+            // FIX BUG 19: ClaimTypes.NameIdentifier is what every controller reads via
+            // User.FindFirst(ClaimTypes.NameIdentifier). Without this claim, every
+            // authenticated endpoint that extracts userId returns null → Unauthorized().
+            new Claim(ClaimTypes.NameIdentifier, user.Id),
+
+            // Standard JWT subject claim
             new Claim(JwtRegisteredClaimNames.Sub, user.Id),
             new Claim(JwtRegisteredClaimNames.Email, user.Email!),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-            new Claim("uid", user.Id),
+
+            // REMOVED: "uid" was a duplicate of Sub — unnecessary extra claim
             new Claim("FirstName", user.FirstName),
             new Claim("LastName", user.LastName)
         };
 
         foreach (var role in roles)
-        {
             claims.Add(new Claim(ClaimTypes.Role, role));
-        }
 
         claims.AddRange(userClaims);
 
-        var key = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(_jwtSettings.SecretKey));
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.SecretKey));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
+        // FIX BUG 6: Use ExpiryMinutes from config instead of hardcoded 60
         var token = new JwtSecurityToken(
             issuer: _jwtSettings.Issuer,
             audience: _jwtSettings.Audience,
@@ -97,11 +108,8 @@ public class JwtTokenService : IJwtTokenService
             .Include(rt => rt.User)
             .FirstOrDefaultAsync(rt => rt.Token == token);
 
-        if (refreshToken == null)
-            return null;
-
-        if (refreshToken.IsRevoked)
-            return null;
+        if (refreshToken == null) return null;
+        if (refreshToken.IsRevoked) return null;
 
         if (refreshToken.ExpiresAt < DateTime.UtcNow)
         {
@@ -133,10 +141,10 @@ public class JwtTokenService : IJwtTokenService
             .Where(rt => rt.UserId == userId && !rt.IsRevoked)
             .ToListAsync();
 
-        foreach (var token in userTokens)
+        foreach (var t in userTokens)
         {
-            token.IsRevoked = true;
-            token.RevokedAt = DateTime.UtcNow;
+            t.IsRevoked = true;
+            t.RevokedAt = DateTime.UtcNow;
         }
 
         await _context.SaveChangesAsync();

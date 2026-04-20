@@ -22,7 +22,6 @@ using PastPort.API.Extensions;
 using PastPort.Application.Common;
 using PastPort.Application.Identity;
 using PastPort.Application.Interfaces;
-using PastPort.Application.Services;
 using PastPort.Domain.Entities;
 using PastPort.Domain.Interfaces;
 using PastPort.Infrastructure.Data;

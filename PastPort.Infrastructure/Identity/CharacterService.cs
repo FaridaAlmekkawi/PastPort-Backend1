@@ -1,13 +1,6 @@
-﻿// ✅ FIXED: CharacterService.cs
-// المشاكل الأصلية:
-// 1. كان فيه كود مكسور في أول الـ class قبل الـ constructor:
-//    - Task<List<Character>> GetAllWithScenesAsync();  ← ده interface declaration مش في مكانه
-//    - public async Task<List<Character>> GetAllWithScenesAsync() مع _dbSet ← مش موجودة هنا
-//    - public async Task<List<CharacterResponseDto>> GetAllCharactersAsync() ← method مكررة
-//    ده كان بيخلي الكود مش compile خالص.
-// 2. GetAllCharactersAsync القديمة كانت تعمل N+1 queries:
-//    GetAllAsync() = query 1، وبعدين N queries داخل foreach loop.
-//    الحل: استخدمنا GetAllWithScenesAsync من الـ repository.
+﻿// BUG 4 FIXED: Namespace was "PastPort.Application.Identity" (wrong project layer).
+//              This file lives in PastPort.Infrastructure.
+//              Changed to PastPort.Infrastructure.Identity.
 
 using PastPort.Application.DTOs.Request;
 using PastPort.Application.DTOs.Response;
@@ -15,7 +8,7 @@ using PastPort.Application.Interfaces;
 using PastPort.Domain.Entities;
 using PastPort.Domain.Interfaces;
 
-namespace PastPort.Application.Identity;
+namespace PastPort.Infrastructure.Identity; // FIX BUG 4: was PastPort.Application.Identity
 
 public class CharacterService : ICharacterService
 {
@@ -57,20 +50,11 @@ public class CharacterService : ICharacterService
 
     public async Task<CharacterResponseDto> GetCharacterByIdAsync(Guid id)
     {
-        var character = await _characterRepository.GetCharacterWithSceneAsync(id);
-        if (character == null)
-            throw new Exception("Character not found");
-
+        var character = await _characterRepository.GetCharacterWithSceneAsync(id)
+            ?? throw new Exception("Character not found");
         return MapToResponseDto(character);
     }
 
-    // ✅ FIXED: الكود القديم كان:
-    //   var characters = await _characterRepository.GetAllAsync();       // Query 1
-    //   foreach (var character in characters)                            // N Queries
-    //       await _characterRepository.GetCharacterWithSceneAsync(...)
-    //
-    // لو عندك 100 character = 101 database queries!
-    // دلوقتي: query واحدة بس بـ JOIN تجيب كل حاجة
     public async Task<List<CharacterResponseDto>> GetAllCharactersAsync()
     {
         var characters = await _characterRepository.GetAllWithScenesAsync();
@@ -85,60 +69,41 @@ public class CharacterService : ICharacterService
 
     public async Task<CharacterResponseDto> UpdateCharacterAsync(Guid id, UpdateCharacterRequestDto request)
     {
-        var character = await _characterRepository.GetByIdAsync(id);
-        if (character == null)
-            throw new Exception("Character not found");
+        var character = await _characterRepository.GetByIdAsync(id)
+            ?? throw new Exception("Character not found");
 
-        if (!string.IsNullOrEmpty(request.Name))
-            character.Name = request.Name;
-
-        if (!string.IsNullOrEmpty(request.Role))
-            character.Role = request.Role;
-
-        if (!string.IsNullOrEmpty(request.Background))
-            character.Background = request.Background;
-
-        if (!string.IsNullOrEmpty(request.Personality))
-            character.Personality = request.Personality;
-
-        if (request.VoiceId != null)
-            character.VoiceId = request.VoiceId;
-
-        if (request.AvatarUrl != null)
-            character.AvatarUrl = request.AvatarUrl;
+        if (!string.IsNullOrEmpty(request.Name)) character.Name = request.Name;
+        if (!string.IsNullOrEmpty(request.Role)) character.Role = request.Role;
+        if (!string.IsNullOrEmpty(request.Background)) character.Background = request.Background;
+        if (!string.IsNullOrEmpty(request.Personality)) character.Personality = request.Personality;
+        if (request.VoiceId != null) character.VoiceId = request.VoiceId;
+        if (request.AvatarUrl != null) character.AvatarUrl = request.AvatarUrl;
 
         await _characterRepository.UpdateAsync(character);
 
-        var updatedCharacter = await _characterRepository.GetCharacterWithSceneAsync(id);
-        return MapToResponseDto(updatedCharacter!);
+        var updated = await _characterRepository.GetCharacterWithSceneAsync(id);
+        return MapToResponseDto(updated!);
     }
 
     public async Task<bool> DeleteCharacterAsync(Guid id)
     {
-        var character = await _characterRepository.GetByIdAsync(id);
-        if (character == null)
-            throw new Exception("Character not found");
-
+        var character = await _characterRepository.GetByIdAsync(id)
+            ?? throw new Exception("Character not found");
         await _characterRepository.DeleteAsync(character);
         return true;
     }
 
-    // ==================== Private Helper ====================
-
-    private static CharacterResponseDto MapToResponseDto(Character character)
+    private static CharacterResponseDto MapToResponseDto(Character character) => new()
     {
-        return new CharacterResponseDto
-        {
-            Id = character.Id,
-            Name = character.Name,
-            Role = character.Role,
-            Background = character.Background,
-            Personality = character.Personality,
-            VoiceId = character.VoiceId,
-            AvatarUrl = character.AvatarUrl,
-            SceneId = character.SceneId,
-            SceneTitle = character.Scene?.Title ?? string.Empty,
-            CreatedAt = character.CreatedAt
-        };
-    }
+        Id = character.Id,
+        Name = character.Name,
+        Role = character.Role,
+        Background = character.Background,
+        Personality = character.Personality,
+        VoiceId = character.VoiceId,
+        AvatarUrl = character.AvatarUrl,
+        SceneId = character.SceneId,
+        SceneTitle = character.Scene?.Title ?? string.Empty,
+        CreatedAt = character.CreatedAt
+    };
 }
