@@ -1,6 +1,7 @@
 ﻿// PastPort.Domain/Entities/Payment.cs
 using PastPort.Domain.Enums;
 namespace PastPort.Domain.Entities;
+
 public class Payment
 {
     public Guid Id { get; set; }
