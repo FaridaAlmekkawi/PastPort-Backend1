@@ -229,15 +229,8 @@ else
 // ✅ FIXED: Swagger بس في Development
 // الكود القديم كان بيشغّل Swagger في كل البيئات
 // ده كان بيكشف كل الـ API endpoints والـ DTOs في Production للمهاجمين
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "PastPort API v1");
-        c.RoutePrefix = "swagger";
-    });
-}
+app.UseSwagger();
+app.UseSwaggerUI();
 
 // 3. الأساسيات
 app.UseHttpsRedirection();

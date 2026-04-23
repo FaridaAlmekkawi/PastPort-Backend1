@@ -57,6 +57,21 @@ namespace PastPort.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "Features",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    Slug = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Features", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "HistoricalScenes",
                 columns: table => new
                 {
@@ -73,6 +88,48 @@ namespace PastPort.Infrastructure.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_HistoricalScenes", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Plans",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    Price = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    Currency = table.Column<string>(type: "nvarchar(3)", maxLength: 3, nullable: false),
+                    BillingCycle = table.Column<int>(type: "int", nullable: false),
+                    TrialDays = table.Column<int>(type: "int", nullable: false),
+                    DisplayOrder = table.Column<int>(type: "int", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    IsPublic = table.Column<bool>(type: "bit", nullable: false),
+                    GatewayMetadata = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Plans", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "WebhookLogs",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Gateway = table.Column<int>(type: "int", nullable: false),
+                    GatewayEventId = table.Column<string>(type: "nvarchar(300)", maxLength: 300, nullable: false),
+                    EventType = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    Payload = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Processed = table.Column<bool>(type: "bit", nullable: false),
+                    ProcessingError = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    ReceivedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    ProcessedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_WebhookLogs", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -209,7 +266,7 @@ namespace PastPort.Infrastructure.Migrations
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     UserId = table.Column<string>(type: "nvarchar(450)", nullable: false),
-                    Code = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    Code = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     ExpiresAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     IsUsed = table.Column<bool>(type: "bit", nullable: false),
@@ -232,8 +289,8 @@ namespace PastPort.Infrastructure.Migrations
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     UserId = table.Column<string>(type: "nvarchar(450)", nullable: false),
-                    Token = table.Column<string>(type: "nvarchar(450)", nullable: false),
-                    Code = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    Token = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Code = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     ExpiresAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     IsUsed = table.Column<bool>(type: "bit", nullable: false),
@@ -279,23 +336,41 @@ namespace PastPort.Infrastructure.Migrations
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     UserId = table.Column<string>(type: "nvarchar(450)", nullable: false),
-                    Provider = table.Column<int>(type: "int", nullable: false),
-                    ProviderPaymentMethodId = table.Column<string>(type: "nvarchar(450)", nullable: false),
-                    Type = table.Column<int>(type: "int", nullable: false),
-                    CardLast4 = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    CardBrand = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    CardExpMonth = table.Column<int>(type: "int", nullable: true),
-                    CardExpYear = table.Column<int>(type: "int", nullable: true),
+                    ProviderPaymentMethodId = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     IsDefault = table.Column<bool>(type: "bit", nullable: false),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    DeletedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_SavedPaymentMethods", x => x.Id);
                     table.ForeignKey(
                         name: "FK_SavedPaymentMethods_AspNetUsers_UserId",
+                        column: x => x.UserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Subscription",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    UserId = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    Plan = table.Column<int>(type: "int", nullable: false),
+                    Status = table.Column<int>(type: "int", nullable: false),
+                    StartDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    EndDate = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    Price = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    StripeSubscriptionId = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    AutoRenew = table.Column<bool>(type: "bit", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Subscription", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Subscription_AspNetUsers_UserId",
                         column: x => x.UserId,
                         principalTable: "AspNetUsers",
                         principalColumn: "Id",
@@ -313,7 +388,7 @@ namespace PastPort.Infrastructure.Migrations
                     FilePath = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     FileUrl = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     FileSize = table.Column<long>(type: "bigint", nullable: false),
-                    FileHash = table.Column<string>(type: "nvarchar(450)", nullable: false),
+                    FileHash = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     Version = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     SceneId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     Description = table.Column<string>(type: "nvarchar(max)", nullable: true),
@@ -331,8 +406,7 @@ namespace PastPort.Infrastructure.Migrations
                         name: "FK_Assets_HistoricalScenes_SceneId",
                         column: x => x.SceneId,
                         principalTable: "HistoricalScenes",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.SetNull);
+                        principalColumn: "Id");
                 });
 
             migrationBuilder.CreateTable(
@@ -361,83 +435,91 @@ namespace PastPort.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "InvoiceItems",
+                name: "PlanFeatures",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    InvoiceId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    Description = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    Quantity = table.Column<int>(type: "int", nullable: false),
-                    UnitPrice = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    Amount = table.Column<decimal>(type: "decimal(18,2)", nullable: false)
+                    PlanId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    FeatureId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Limit = table.Column<int>(type: "int", nullable: true),
+                    IsEnabled = table.Column<bool>(type: "bit", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_InvoiceItems", x => x.Id);
+                    table.PrimaryKey("PK_PlanFeatures", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_PlanFeatures_Features_FeatureId",
+                        column: x => x.FeatureId,
+                        principalTable: "Features",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_PlanFeatures_Plans_PlanId",
+                        column: x => x.PlanId,
+                        principalTable: "Plans",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
-                name: "Invoices",
+                name: "UserSubscriptions",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    InvoiceNumber = table.Column<string>(type: "nvarchar(450)", nullable: false),
                     UserId = table.Column<string>(type: "nvarchar(450)", nullable: false),
-                    PaymentId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    SubscriptionId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    Amount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    TaxAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    TotalAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    Currency = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    PlanId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     Status = table.Column<int>(type: "int", nullable: false),
-                    IssuedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    DueDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    PaidAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    PdfUrl = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    HostedInvoiceUrl = table.Column<string>(type: "nvarchar(max)", nullable: true)
+                    CurrentPeriodStart = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CurrentPeriodEnd = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    TrialEnd = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    ProrationCredit = table.Column<decimal>(type: "decimal(18,2)", nullable: true),
+                    AutoRenew = table.Column<bool>(type: "bit", nullable: false),
+                    CancelledAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    PreviousPlanId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    GatewaySubscriptionId = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_Invoices", x => x.Id);
+                    table.PrimaryKey("PK_UserSubscriptions", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Invoices_AspNetUsers_UserId",
-                        column: x => x.UserId,
-                        principalTable: "AspNetUsers",
+                        name: "FK_UserSubscriptions_Plans_PlanId",
+                        column: x => x.PlanId,
+                        principalTable: "Plans",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
-                name: "Payments",
+                name: "Payment",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     UserId = table.Column<string>(type: "nvarchar(450)", nullable: false),
-                    SubscriptionId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    ProviderPaymentId = table.Column<string>(type: "nvarchar(450)", nullable: false),
                     PayPalOrderId = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     PayerEmail = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     PayerName = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     Amount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    SubtotalAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    TaxAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    DiscountAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     Currency = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     Status = table.Column<int>(type: "int", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    ApprovedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    CompletedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    SubscriptionId1 = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    SubscriptionId = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_Payments", x => x.Id);
+                    table.PrimaryKey("PK_Payment", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Payments_AspNetUsers_UserId",
+                        name: "FK_Payment_AspNetUsers_UserId",
                         column: x => x.UserId,
                         principalTable: "AspNetUsers",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_Payment_Subscription_SubscriptionId",
+                        column: x => x.SubscriptionId,
+                        principalTable: "Subscription",
+                        principalColumn: "Id");
                 });
 
             migrationBuilder.CreateTable(
@@ -445,20 +527,27 @@ namespace PastPort.Infrastructure.Migrations
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    PaymentId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    Type = table.Column<int>(type: "int", nullable: false),
+                    UserSubscriptionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    UserId = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Amount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    Currency = table.Column<string>(type: "nvarchar(3)", maxLength: 3, nullable: false),
                     Status = table.Column<int>(type: "int", nullable: false),
-                    ProviderResponse = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    ErrorMessage = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                    Gateway = table.Column<int>(type: "int", nullable: false),
+                    GatewayTransactionId = table.Column<string>(type: "nvarchar(300)", maxLength: 300, nullable: true),
+                    GatewayResponse = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    GatewayPaymentUrl = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    FailureReason = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    IdempotencyKey = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    ProcessedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_PaymentTransactions", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_PaymentTransactions_Payments_PaymentId",
-                        column: x => x.PaymentId,
-                        principalTable: "Payments",
+                        name: "FK_PaymentTransactions_UserSubscriptions_UserSubscriptionId",
+                        column: x => x.UserSubscriptionId,
+                        principalTable: "UserSubscriptions",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -472,7 +561,7 @@ namespace PastPort.Infrastructure.Migrations
                     Amount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
                     Status = table.Column<int>(type: "int", nullable: false),
                     Reason = table.Column<int>(type: "int", nullable: false),
-                    ProviderRefundId = table.Column<string>(type: "nvarchar(450)", nullable: true),
+                    ProviderRefundId = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     Notes = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     RequestedBy = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     RequestedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
@@ -482,44 +571,48 @@ namespace PastPort.Infrastructure.Migrations
                 {
                     table.PrimaryKey("PK_Refunds", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Refunds_Payments_PaymentId",
+                        name: "FK_Refunds_Payment_PaymentId",
                         column: x => x.PaymentId,
-                        principalTable: "Payments",
+                        principalTable: "Payment",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
-                name: "Subscriptions",
+                name: "Invoices",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    UserId = table.Column<string>(type: "nvarchar(450)", nullable: false),
-                    Plan = table.Column<int>(type: "int", nullable: false),
+                    InvoiceNumber = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    UserSubscriptionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    PaymentTransactionId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    UserId = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    SubTotal = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    TaxAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    DiscountAmount = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
+                    TotalAmount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
+                    Currency = table.Column<string>(type: "nvarchar(3)", maxLength: 3, nullable: false),
                     Status = table.Column<int>(type: "int", nullable: false),
-                    StartDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    EndDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    Price = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    StripeSubscriptionId = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    LastPaymentId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    LastPaymentId1 = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
-                    NextBillingDate = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    AutoRenew = table.Column<bool>(type: "bit", nullable: false)
+                    IssuedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    PaidAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    DueDate = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    BillingAddressJson = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    PdfUrl = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_Subscriptions", x => x.Id);
+                    table.PrimaryKey("PK_Invoices", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Subscriptions_AspNetUsers_UserId",
-                        column: x => x.UserId,
-                        principalTable: "AspNetUsers",
+                        name: "FK_Invoices_PaymentTransactions_PaymentTransactionId",
+                        column: x => x.PaymentTransactionId,
+                        principalTable: "PaymentTransactions",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_Invoices_UserSubscriptions_UserSubscriptionId",
+                        column: x => x.UserSubscriptionId,
+                        principalTable: "UserSubscriptions",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_Subscriptions_Payments_LastPaymentId1",
-                        column: x => x.LastPaymentId1,
-                        principalTable: "Payments",
-                        principalColumn: "Id");
                 });
 
             migrationBuilder.CreateIndex(
@@ -562,11 +655,6 @@ namespace PastPort.Infrastructure.Migrations
                 filter: "[NormalizedUserName] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Assets_FileHash",
-                table: "Assets",
-                column: "FileHash");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_Assets_FileName",
                 table: "Assets",
                 column: "FileName");
@@ -587,19 +675,15 @@ namespace PastPort.Infrastructure.Migrations
                 column: "UserId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_EmailVerificationCodes_Code",
-                table: "EmailVerificationCodes",
-                column: "Code");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_EmailVerificationCodes_UserId",
                 table: "EmailVerificationCodes",
                 column: "UserId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_InvoiceItems_InvoiceId",
-                table: "InvoiceItems",
-                column: "InvoiceId");
+                name: "IX_Features_Slug",
+                table: "Features",
+                column: "Slug",
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_Invoices_InvoiceNumber",
@@ -608,39 +692,16 @@ namespace PastPort.Infrastructure.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_Invoices_IssuedAt",
+                name: "IX_Invoices_PaymentTransactionId",
                 table: "Invoices",
-                column: "IssuedAt");
+                column: "PaymentTransactionId",
+                unique: true,
+                filter: "[PaymentTransactionId] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Invoices_PaymentId",
+                name: "IX_Invoices_UserSubscriptionId",
                 table: "Invoices",
-                column: "PaymentId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Invoices_Status",
-                table: "Invoices",
-                column: "Status");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Invoices_SubscriptionId",
-                table: "Invoices",
-                column: "SubscriptionId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Invoices_UserId",
-                table: "Invoices",
-                column: "UserId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_PasswordResetTokens_Code",
-                table: "PasswordResetTokens",
-                column: "Code");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_PasswordResetTokens_Token",
-                table: "PasswordResetTokens",
-                column: "Token");
+                column: "UserSubscriptionId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_PasswordResetTokens_UserId",
@@ -648,44 +709,47 @@ namespace PastPort.Infrastructure.Migrations
                 column: "UserId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Payments_CreatedAt",
-                table: "Payments",
-                column: "CreatedAt");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Payments_ProviderPaymentId",
-                table: "Payments",
-                column: "ProviderPaymentId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Payments_Status",
-                table: "Payments",
-                column: "Status");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Payments_SubscriptionId",
-                table: "Payments",
+                name: "IX_Payment_SubscriptionId",
+                table: "Payment",
                 column: "SubscriptionId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Payments_SubscriptionId1",
-                table: "Payments",
-                column: "SubscriptionId1");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Payments_UserId",
-                table: "Payments",
+                name: "IX_Payment_UserId",
+                table: "Payment",
                 column: "UserId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_PaymentTransactions_CreatedAt",
+                name: "IX_PaymentTransactions_GatewayTransactionId",
                 table: "PaymentTransactions",
-                column: "CreatedAt");
+                column: "GatewayTransactionId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_PaymentTransactions_PaymentId",
+                name: "IX_PaymentTransactions_IdempotencyKey",
                 table: "PaymentTransactions",
-                column: "PaymentId");
+                column: "IdempotencyKey",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PaymentTransactions_UserSubscriptionId",
+                table: "PaymentTransactions",
+                column: "UserSubscriptionId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PlanFeatures_FeatureId",
+                table: "PlanFeatures",
+                column: "FeatureId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PlanFeatures_PlanId_FeatureId",
+                table: "PlanFeatures",
+                columns: new[] { "PlanId", "FeatureId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Plans_Name",
+                table: "Plans",
+                column: "Name",
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_RefreshTokens_UserId",
@@ -698,90 +762,35 @@ namespace PastPort.Infrastructure.Migrations
                 column: "PaymentId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Refunds_ProviderRefundId",
-                table: "Refunds",
-                column: "ProviderRefundId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Refunds_Status",
-                table: "Refunds",
-                column: "Status");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_SavedPaymentMethods_ProviderPaymentMethodId",
+                name: "IX_SavedPaymentMethods_UserId",
                 table: "SavedPaymentMethods",
-                column: "ProviderPaymentMethodId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_SavedPaymentMethods_UserId_IsDefault",
-                table: "SavedPaymentMethods",
-                columns: new[] { "UserId", "IsDefault" });
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Subscriptions_LastPaymentId1",
-                table: "Subscriptions",
-                column: "LastPaymentId1");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Subscriptions_UserId",
-                table: "Subscriptions",
                 column: "UserId");
 
-            migrationBuilder.AddForeignKey(
-                name: "FK_InvoiceItems_Invoices_InvoiceId",
-                table: "InvoiceItems",
-                column: "InvoiceId",
-                principalTable: "Invoices",
-                principalColumn: "Id",
-                onDelete: ReferentialAction.Cascade);
+            migrationBuilder.CreateIndex(
+                name: "IX_Subscription_UserId",
+                table: "Subscription",
+                column: "UserId");
 
-            migrationBuilder.AddForeignKey(
-                name: "FK_Invoices_Payments_PaymentId",
-                table: "Invoices",
-                column: "PaymentId",
-                principalTable: "Payments",
-                principalColumn: "Id",
-                onDelete: ReferentialAction.SetNull);
+            migrationBuilder.CreateIndex(
+                name: "IX_UserSubscriptions_PlanId",
+                table: "UserSubscriptions",
+                column: "PlanId");
 
-            migrationBuilder.AddForeignKey(
-                name: "FK_Invoices_Subscriptions_SubscriptionId",
-                table: "Invoices",
-                column: "SubscriptionId",
-                principalTable: "Subscriptions",
-                principalColumn: "Id",
-                onDelete: ReferentialAction.SetNull);
+            migrationBuilder.CreateIndex(
+                name: "IX_UserSubscriptions_UserId_Status",
+                table: "UserSubscriptions",
+                columns: new[] { "UserId", "Status" });
 
-            migrationBuilder.AddForeignKey(
-                name: "FK_Payments_Subscriptions_SubscriptionId",
-                table: "Payments",
-                column: "SubscriptionId",
-                principalTable: "Subscriptions",
-                principalColumn: "Id",
-                onDelete: ReferentialAction.SetNull);
-
-            migrationBuilder.AddForeignKey(
-                name: "FK_Payments_Subscriptions_SubscriptionId1",
-                table: "Payments",
-                column: "SubscriptionId1",
-                principalTable: "Subscriptions",
-                principalColumn: "Id");
+            migrationBuilder.CreateIndex(
+                name: "IX_WebhookLogs_Gateway_GatewayEventId",
+                table: "WebhookLogs",
+                columns: new[] { "Gateway", "GatewayEventId" },
+                unique: true);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropForeignKey(
-                name: "FK_Payments_AspNetUsers_UserId",
-                table: "Payments");
-
-            migrationBuilder.DropForeignKey(
-                name: "FK_Subscriptions_AspNetUsers_UserId",
-                table: "Subscriptions");
-
-            migrationBuilder.DropForeignKey(
-                name: "FK_Subscriptions_Payments_LastPaymentId1",
-                table: "Subscriptions");
-
             migrationBuilder.DropTable(
                 name: "AspNetRoleClaims");
 
@@ -810,13 +819,13 @@ namespace PastPort.Infrastructure.Migrations
                 name: "EmailVerificationCodes");
 
             migrationBuilder.DropTable(
-                name: "InvoiceItems");
+                name: "Invoices");
 
             migrationBuilder.DropTable(
                 name: "PasswordResetTokens");
 
             migrationBuilder.DropTable(
-                name: "PaymentTransactions");
+                name: "PlanFeatures");
 
             migrationBuilder.DropTable(
                 name: "RefreshTokens");
@@ -828,22 +837,34 @@ namespace PastPort.Infrastructure.Migrations
                 name: "SavedPaymentMethods");
 
             migrationBuilder.DropTable(
+                name: "WebhookLogs");
+
+            migrationBuilder.DropTable(
                 name: "AspNetRoles");
 
             migrationBuilder.DropTable(
                 name: "HistoricalScenes");
 
             migrationBuilder.DropTable(
-                name: "Invoices");
+                name: "PaymentTransactions");
+
+            migrationBuilder.DropTable(
+                name: "Features");
+
+            migrationBuilder.DropTable(
+                name: "Payment");
+
+            migrationBuilder.DropTable(
+                name: "UserSubscriptions");
+
+            migrationBuilder.DropTable(
+                name: "Subscription");
+
+            migrationBuilder.DropTable(
+                name: "Plans");
 
             migrationBuilder.DropTable(
                 name: "AspNetUsers");
-
-            migrationBuilder.DropTable(
-                name: "Payments");
-
-            migrationBuilder.DropTable(
-                name: "Subscriptions");
         }
     }
 }

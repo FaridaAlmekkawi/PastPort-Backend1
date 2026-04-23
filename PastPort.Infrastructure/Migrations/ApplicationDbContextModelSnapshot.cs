@@ -257,7 +257,7 @@ namespace PastPort.Infrastructure.Migrations
 
                     b.Property<string>("FileHash")
                         .IsRequired()
-                        .HasColumnType("nvarchar(450)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("FileName")
                         .IsRequired()
@@ -301,8 +301,6 @@ namespace PastPort.Infrastructure.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("FileHash");
 
                     b.HasIndex("FileName");
 
@@ -393,7 +391,7 @@ namespace PastPort.Infrastructure.Migrations
 
                     b.Property<string>("Code")
                         .IsRequired()
-                        .HasColumnType("nvarchar(450)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -413,11 +411,40 @@ namespace PastPort.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Code");
-
                     b.HasIndex("UserId");
 
                     b.ToTable("EmailVerificationCodes");
+                });
+
+            modelBuilder.Entity("PastPort.Domain.Entities.Feature", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.ToTable("Features");
                 });
 
             modelBuilder.Entity("PastPort.Domain.Entities.HistoricalScene", b =>
@@ -467,22 +494,24 @@ namespace PastPort.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<decimal>("Amount")
-                        .HasColumnType("decimal(18,2)");
+                    b.Property<string>("BillingAddressJson")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("Currency")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
 
-                    b.Property<DateTime>("DueDate")
+                    b.Property<decimal>("DiscountAmount")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("DueDate")
                         .HasColumnType("datetime2");
-
-                    b.Property<string>("HostedInvoiceUrl")
-                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("InvoiceNumber")
                         .IsRequired()
-                        .HasColumnType("nvarchar(450)");
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.Property<DateTime>("IssuedAt")
                         .HasColumnType("datetime2");
@@ -490,73 +519,45 @@ namespace PastPort.Infrastructure.Migrations
                     b.Property<DateTime?>("PaidAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<Guid?>("PaymentId")
+                    b.Property<Guid?>("PaymentTransactionId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("PdfUrl")
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
 
-                    b.Property<Guid?>("SubscriptionId")
-                        .HasColumnType("uniqueidentifier");
+                    b.Property<decimal>("SubTotal")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("TaxAmount")
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("TotalAmount")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("UserId")
                         .IsRequired()
-                        .HasColumnType("nvarchar(450)");
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("UserSubscriptionId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
 
                     b.HasIndex("InvoiceNumber")
                         .IsUnique();
 
-                    b.HasIndex("IssuedAt");
+                    b.HasIndex("PaymentTransactionId")
+                        .IsUnique()
+                        .HasFilter("[PaymentTransactionId] IS NOT NULL");
 
-                    b.HasIndex("PaymentId");
-
-                    b.HasIndex("Status");
-
-                    b.HasIndex("SubscriptionId");
-
-                    b.HasIndex("UserId");
+                    b.HasIndex("UserSubscriptionId");
 
                     b.ToTable("Invoices");
-                });
-
-            modelBuilder.Entity("PastPort.Domain.Entities.InvoiceItem", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<decimal>("Amount")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<Guid>("InvoiceId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("Quantity")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("UnitPrice")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("InvoiceId");
-
-                    b.ToTable("InvoiceItems");
                 });
 
             modelBuilder.Entity("PastPort.Domain.Entities.PasswordResetToken", b =>
@@ -567,7 +568,7 @@ namespace PastPort.Infrastructure.Migrations
 
                     b.Property<string>("Code")
                         .IsRequired()
-                        .HasColumnType("nvarchar(450)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -580,7 +581,7 @@ namespace PastPort.Infrastructure.Migrations
 
                     b.Property<string>("Token")
                         .IsRequired()
-                        .HasColumnType("nvarchar(450)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("UsedAt")
                         .HasColumnType("datetime2");
@@ -590,10 +591,6 @@ namespace PastPort.Infrastructure.Migrations
                         .HasColumnType("nvarchar(450)");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("Code");
-
-                    b.HasIndex("Token");
 
                     b.HasIndex("UserId");
 
@@ -609,21 +606,12 @@ namespace PastPort.Infrastructure.Migrations
                     b.Property<decimal>("Amount")
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<DateTime?>("ApprovedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("CompletedAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<string>("Currency")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<decimal>("DiscountAmount")
-                        .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("PayPalOrderId")
                         .IsRequired()
@@ -637,24 +625,11 @@ namespace PastPort.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("ProviderPaymentId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
                     b.Property<int>("Status")
                         .HasColumnType("int");
 
                     b.Property<Guid?>("SubscriptionId")
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("SubscriptionId1")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<decimal>("SubtotalAmount")
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("TaxAmount")
-                        .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("UserId")
                         .IsRequired()
@@ -662,19 +637,11 @@ namespace PastPort.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CreatedAt");
-
-                    b.HasIndex("ProviderPaymentId");
-
-                    b.HasIndex("Status");
-
                     b.HasIndex("SubscriptionId");
-
-                    b.HasIndex("SubscriptionId1");
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("Payments");
+                    b.ToTable("Payment");
                 });
 
             modelBuilder.Entity("PastPort.Domain.Entities.PaymentTransaction", b =>
@@ -683,31 +650,148 @@ namespace PastPort.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("ErrorMessage")
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("Gateway")
+                        .HasColumnType("int");
+
+                    b.Property<string>("GatewayPaymentUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("GatewayResponse")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<Guid>("PaymentId")
-                        .HasColumnType("uniqueidentifier");
+                    b.Property<string>("GatewayTransactionId")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
 
-                    b.Property<string>("ProviderResponse")
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("ProcessedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
 
-                    b.Property<int>("Type")
-                        .HasColumnType("int");
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("UserSubscriptionId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CreatedAt");
+                    b.HasIndex("GatewayTransactionId");
 
-                    b.HasIndex("PaymentId");
+                    b.HasIndex("IdempotencyKey")
+                        .IsUnique();
+
+                    b.HasIndex("UserSubscriptionId");
 
                     b.ToTable("PaymentTransactions");
+                });
+
+            modelBuilder.Entity("PastPort.Domain.Entities.Plan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("BillingCycle")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("GatewayMetadata")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsPublic")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<decimal>("Price")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("TrialDays")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Plans");
+                });
+
+            modelBuilder.Entity("PastPort.Domain.Entities.PlanFeature", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("FeatureId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<int?>("Limit")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FeatureId");
+
+                    b.HasIndex("PlanId", "FeatureId")
+                        .IsUnique();
+
+                    b.ToTable("PlanFeatures");
                 });
 
             modelBuilder.Entity("PastPort.Domain.Entities.RefreshToken", b =>
@@ -762,7 +846,7 @@ namespace PastPort.Infrastructure.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<string>("ProviderRefundId")
-                        .HasColumnType("nvarchar(450)");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("Reason")
                         .HasColumnType("int");
@@ -781,10 +865,6 @@ namespace PastPort.Infrastructure.Migrations
 
                     b.HasIndex("PaymentId");
 
-                    b.HasIndex("ProviderRefundId");
-
-                    b.HasIndex("Status");
-
                     b.ToTable("Refunds");
                 });
 
@@ -794,22 +874,7 @@ namespace PastPort.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("CardBrand")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int?>("CardExpMonth")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("CardExpYear")
-                        .HasColumnType("int");
-
-                    b.Property<string>("CardLast4")
-                        .HasColumnType("nvarchar(max)");
-
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<bool>("IsActive")
@@ -818,15 +883,9 @@ namespace PastPort.Infrastructure.Migrations
                     b.Property<bool>("IsDefault")
                         .HasColumnType("bit");
 
-                    b.Property<int>("Provider")
-                        .HasColumnType("int");
-
                     b.Property<string>("ProviderPaymentMethodId")
                         .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<int>("Type")
-                        .HasColumnType("int");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("UserId")
                         .IsRequired()
@@ -834,9 +893,7 @@ namespace PastPort.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ProviderPaymentMethodId");
-
-                    b.HasIndex("UserId", "IsDefault");
+                    b.HasIndex("UserId");
 
                     b.ToTable("SavedPaymentMethods");
                 });
@@ -851,15 +908,6 @@ namespace PastPort.Infrastructure.Migrations
                         .HasColumnType("bit");
 
                     b.Property<DateTime>("EndDate")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("LastPaymentId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("LastPaymentId1")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("NextBillingDate")
                         .HasColumnType("datetime2");
 
                     b.Property<int>("Plan")
@@ -884,11 +932,109 @@ namespace PastPort.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("LastPaymentId1");
-
                     b.HasIndex("UserId");
 
-                    b.ToTable("Subscriptions");
+                    b.ToTable("Subscription");
+                });
+
+            modelBuilder.Entity("PastPort.Domain.Entities.UserSubscription", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("AutoRenew")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CurrentPeriodEnd")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CurrentPeriodStart")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("GatewaySubscriptionId")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("PreviousPlanId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("ProrationCredit")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("TrialEnd")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PlanId");
+
+                    b.HasIndex("UserId", "Status");
+
+                    b.ToTable("UserSubscriptions");
+                });
+
+            modelBuilder.Entity("PastPort.Domain.Entities.WebhookLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("Gateway")
+                        .HasColumnType("int");
+
+                    b.Property<string>("GatewayEventId")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("Processed")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("ProcessedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ProcessingError")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("ReceivedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Gateway", "GatewayEventId")
+                        .IsUnique();
+
+                    b.ToTable("WebhookLogs");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
@@ -946,8 +1092,7 @@ namespace PastPort.Infrastructure.Migrations
                 {
                     b.HasOne("PastPort.Domain.Entities.HistoricalScene", "Scene")
                         .WithMany()
-                        .HasForeignKey("SceneId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .HasForeignKey("SceneId");
 
                     b.Navigation("Scene");
                 });
@@ -987,38 +1132,19 @@ namespace PastPort.Infrastructure.Migrations
 
             modelBuilder.Entity("PastPort.Domain.Entities.Invoice", b =>
                 {
-                    b.HasOne("PastPort.Domain.Entities.Payment", "Payment")
-                        .WithMany()
-                        .HasForeignKey("PaymentId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                    b.HasOne("PastPort.Domain.Entities.PaymentTransaction", "PaymentTransaction")
+                        .WithOne("Invoice")
+                        .HasForeignKey("PastPort.Domain.Entities.Invoice", "PaymentTransactionId");
 
-                    b.HasOne("PastPort.Domain.Entities.Subscription", "Subscription")
-                        .WithMany()
-                        .HasForeignKey("SubscriptionId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("PastPort.Domain.Entities.ApplicationUser", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Payment");
-
-                    b.Navigation("Subscription");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("PastPort.Domain.Entities.InvoiceItem", b =>
-                {
-                    b.HasOne("PastPort.Domain.Entities.Invoice", "Invoice")
-                        .WithMany("Items")
-                        .HasForeignKey("InvoiceId")
+                    b.HasOne("PastPort.Domain.Entities.UserSubscription", "UserSubscription")
+                        .WithMany("Invoices")
+                        .HasForeignKey("UserSubscriptionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Invoice");
+                    b.Navigation("PaymentTransaction");
+
+                    b.Navigation("UserSubscription");
                 });
 
             modelBuilder.Entity("PastPort.Domain.Entities.PasswordResetToken", b =>
@@ -1034,35 +1160,47 @@ namespace PastPort.Infrastructure.Migrations
 
             modelBuilder.Entity("PastPort.Domain.Entities.Payment", b =>
                 {
-                    b.HasOne("PastPort.Domain.Entities.Subscription", "Subscription")
-                        .WithMany()
-                        .HasForeignKey("SubscriptionId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("PastPort.Domain.Entities.Subscription", null)
                         .WithMany("Payments")
-                        .HasForeignKey("SubscriptionId1");
+                        .HasForeignKey("SubscriptionId");
 
                     b.HasOne("PastPort.Domain.Entities.ApplicationUser", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("Subscription");
 
                     b.Navigation("User");
                 });
 
             modelBuilder.Entity("PastPort.Domain.Entities.PaymentTransaction", b =>
                 {
-                    b.HasOne("PastPort.Domain.Entities.Payment", "Payment")
-                        .WithMany()
-                        .HasForeignKey("PaymentId")
+                    b.HasOne("PastPort.Domain.Entities.UserSubscription", "UserSubscription")
+                        .WithMany("Transactions")
+                        .HasForeignKey("UserSubscriptionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Payment");
+                    b.Navigation("UserSubscription");
+                });
+
+            modelBuilder.Entity("PastPort.Domain.Entities.PlanFeature", b =>
+                {
+                    b.HasOne("PastPort.Domain.Entities.Feature", "Feature")
+                        .WithMany("PlanFeatures")
+                        .HasForeignKey("FeatureId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("PastPort.Domain.Entities.Plan", "Plan")
+                        .WithMany("PlanFeatures")
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Feature");
+
+                    b.Navigation("Plan");
                 });
 
             modelBuilder.Entity("PastPort.Domain.Entities.RefreshToken", b =>
@@ -1081,7 +1219,7 @@ namespace PastPort.Infrastructure.Migrations
                     b.HasOne("PastPort.Domain.Entities.Payment", "Payment")
                         .WithMany()
                         .HasForeignKey("PaymentId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Payment");
@@ -1100,19 +1238,24 @@ namespace PastPort.Infrastructure.Migrations
 
             modelBuilder.Entity("PastPort.Domain.Entities.Subscription", b =>
                 {
-                    b.HasOne("PastPort.Domain.Entities.Payment", "LastPayment")
-                        .WithMany()
-                        .HasForeignKey("LastPaymentId1");
-
                     b.HasOne("PastPort.Domain.Entities.ApplicationUser", "User")
                         .WithMany("Subscriptions")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("LastPayment");
-
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("PastPort.Domain.Entities.UserSubscription", b =>
+                {
+                    b.HasOne("PastPort.Domain.Entities.Plan", "Plan")
+                        .WithMany("UserSubscriptions")
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Plan");
                 });
 
             modelBuilder.Entity("PastPort.Domain.Entities.ApplicationUser", b =>
@@ -1122,19 +1265,38 @@ namespace PastPort.Infrastructure.Migrations
                     b.Navigation("Subscriptions");
                 });
 
+            modelBuilder.Entity("PastPort.Domain.Entities.Feature", b =>
+                {
+                    b.Navigation("PlanFeatures");
+                });
+
             modelBuilder.Entity("PastPort.Domain.Entities.HistoricalScene", b =>
                 {
                     b.Navigation("Characters");
                 });
 
-            modelBuilder.Entity("PastPort.Domain.Entities.Invoice", b =>
+            modelBuilder.Entity("PastPort.Domain.Entities.PaymentTransaction", b =>
                 {
-                    b.Navigation("Items");
+                    b.Navigation("Invoice");
+                });
+
+            modelBuilder.Entity("PastPort.Domain.Entities.Plan", b =>
+                {
+                    b.Navigation("PlanFeatures");
+
+                    b.Navigation("UserSubscriptions");
                 });
 
             modelBuilder.Entity("PastPort.Domain.Entities.Subscription", b =>
                 {
                     b.Navigation("Payments");
+                });
+
+            modelBuilder.Entity("PastPort.Domain.Entities.UserSubscription", b =>
+                {
+                    b.Navigation("Invoices");
+
+                    b.Navigation("Transactions");
                 });
 #pragma warning restore 612, 618
         }
