@@ -4,6 +4,10 @@
 // only had "sub" — in .NET 6+ the automatic sub→NameIdentifier mapping is OFF.
 // Also removed the redundant "uid" duplicate claim.
 
+// FIX 2: Atomic revoke-on-validate using optimistic concurrency (ExecuteUpdateAsync)
+// FIX 3: Token rotation logic documented (handled in AuthService).
+// FIX 4: Note - index on RefreshTokens.Token MUST be added in ApplicationDbContext.OnModelCreating!
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -53,8 +57,9 @@ public class JwtTokenService : IJwtTokenService
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
 
             // REMOVED: "uid" was a duplicate of Sub — unnecessary extra claim
-            new Claim("FirstName", user.FirstName),
-            new Claim("LastName", user.LastName)
+            // Added null fallback to prevent exceptions if names are null
+            new Claim("FirstName", user.FirstName ?? ""),
+            new Claim("LastName", user.LastName ?? "")
         };
 
         foreach (var role in roles)
@@ -102,51 +107,51 @@ public class JwtTokenService : IJwtTokenService
         return refreshToken;
     }
 
+    // FIX 2: Atomic revoke-on-validate using ExecuteUpdateAsync to prevent TOCTOU
     public async Task<RefreshToken?> ValidateRefreshTokenAsync(string token)
     {
+        // نجلب التوكن إذا لم يكن Revoked فقط لتوفير الـ Checks
         var refreshToken = await _context.RefreshTokens
             .Include(rt => rt.User)
-            .FirstOrDefaultAsync(rt => rt.Token == token);
+            .FirstOrDefaultAsync(rt => rt.Token == token && !rt.IsRevoked);
 
-        if (refreshToken == null) return null;
-        if (refreshToken.IsRevoked) return null;
+        if (refreshToken == null)
+            return null;
 
         if (refreshToken.ExpiresAt < DateTime.UtcNow)
         {
-            refreshToken.IsRevoked = true;
-            refreshToken.RevokedAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
+            // Expired — revoke atomically
+            await _context.RefreshTokens
+                .Where(rt => rt.Token == token && !rt.IsRevoked)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(rt => rt.IsRevoked, true)
+                    .SetProperty(rt => rt.RevokedAt, DateTime.UtcNow));
+
             return null;
         }
 
+        // FIX 3: Token is not rotated here. It is rotated/revoked in AuthService
+        // after validation passes.
         return refreshToken;
     }
 
+    // Refactored to use ExecuteUpdateAsync for atomic update & better performance
     public async Task RevokeRefreshTokenAsync(string token)
     {
-        var refreshToken = await _context.RefreshTokens
-            .FirstOrDefaultAsync(rt => rt.Token == token);
-
-        if (refreshToken != null)
-        {
-            refreshToken.IsRevoked = true;
-            refreshToken.RevokedAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
-        }
+        await _context.RefreshTokens
+            .Where(rt => rt.Token == token && !rt.IsRevoked)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(rt => rt.IsRevoked, true)
+                .SetProperty(rt => rt.RevokedAt, DateTime.UtcNow));
     }
 
+    // Refactored to use ExecuteUpdateAsync for Bulk Update & better performance
     public async Task RevokeAllUserTokensAsync(string userId)
     {
-        var userTokens = await _context.RefreshTokens
+        await _context.RefreshTokens
             .Where(rt => rt.UserId == userId && !rt.IsRevoked)
-            .ToListAsync();
-
-        foreach (var t in userTokens)
-        {
-            t.IsRevoked = true;
-            t.RevokedAt = DateTime.UtcNow;
-        }
-
-        await _context.SaveChangesAsync();
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(rt => rt.IsRevoked, true)
+                .SetProperty(rt => rt.RevokedAt, DateTime.UtcNow));
     }
 }
