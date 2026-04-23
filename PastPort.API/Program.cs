@@ -15,6 +15,7 @@ using PastPort.Infrastructure.Data.Repositories;
 using PastPort.Infrastructure.ExternalServices.AI;
 using PastPort.Infrastructure.ExternalServices.Payment;
 using PastPort.Infrastructure.ExternalServices.Storage;
+using AspNetCoreRateLimit; // تم الإضافة عشان الـ Rate Limiting
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -53,7 +54,7 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 .AddEntityFrameworkStores<ApplicationDbContext>()
 .AddDefaultTokenProviders();
 
-// --- JWT
+// --- JWT & Authentication (FIX 1: تم ربط Google و Facebook بشكل صحيح)
 var jwtSettingsSection = builder.Configuration.GetSection("JwtSettings");
 builder.Services.Configure<JwtSettings>(jwtSettingsSection);
 var secretKey = jwtSettingsSection["SecretKey"];
@@ -81,9 +82,34 @@ builder.Services.AddAuthentication(options =>
         ValidAudience = jwtSettingsSection["Audience"],
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey))
     };
+})
+.AddGoogle(options =>
+{
+    options.ClientId = builder.Configuration["Authentication:Google:ClientId"]
+        ?? throw new InvalidOperationException("Google ClientId missing");
+    options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"]
+        ?? throw new InvalidOperationException("Google ClientSecret missing");
+    Log.Information("✅ Google Authentication enabled");
+})
+.AddFacebook(options =>
+{
+    options.AppId = builder.Configuration["Authentication:Facebook:AppId"]
+        ?? throw new InvalidOperationException("Facebook AppId missing");
+    options.AppSecret = builder.Configuration["Authentication:Facebook:AppSecret"]
+        ?? throw new InvalidOperationException("Facebook AppSecret missing");
+    Log.Information("✅ Facebook Authentication enabled");
 });
 
-// --- DI
+// --- Rate Limiting (FIX 3: تم إضافة إعدادات الـ Rate Limit)
+builder.Services.AddMemoryCache();
+builder.Services.Configure<IpRateLimitOptions>(builder.Configuration.GetSection("IpRateLimiting"));
+builder.Services.AddSingleton<IIpPolicyStore, MemoryCacheIpPolicyStore>();
+builder.Services.AddSingleton<IRateLimitCounterStore, MemoryCacheRateLimitCounterStore>();
+builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
+builder.Services.AddSingleton<IProcessingStrategy, AsyncKeyLockProcessingStrategy>();
+builder.Services.AddInMemoryRateLimiting();
+
+// --- DI (تم التأكد من وجود IPaymentRepository)
 builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 builder.Services.AddScoped<ISceneRepository, SceneRepository>();
 builder.Services.AddScoped<ICharacterRepository, CharacterRepository>();
@@ -164,8 +190,14 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 // ==================================================
-// MIDDLEWARE
+// MIDDLEWARE PIPELINE (FIX 2: ترتيب الـ Middleware)
 // ==================================================
+
+// 1. Exception Handler MUST be FIRST
+app.UseCustomExceptionHandler();
+
+// 2. Request Logging SECOND (عشان يسجل كل الـ Requests حتى اللي بتضرب Errors)
+app.UseRequestLogging();
 
 if (app.Environment.IsDevelopment())
 {
@@ -173,7 +205,7 @@ if (app.Environment.IsDevelopment())
 }
 else
 {
-    app.UseExceptionHandler("/error");
+    // لو مش Development ممكن نستخدم Hsts
     app.UseHsts();
 }
 
@@ -185,27 +217,25 @@ app.Use(async (context, next) =>
 });
 
 app.UseHttpsRedirection();
-
 app.UseStaticFiles();
 
 app.UseRouting();
 
+// 3. Rate Limiting Middleware (يُفضل يكون بعد الـ Routing وقبل الـ Auth)
+app.UseIpRateLimiting();
+
 app.UseCors(app.Environment.IsDevelopment() ? "Development" : "Production");
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 // 🔥 Swagger FIX
 app.UseSwagger();
-
 app.UseSwaggerUI(c =>
 {
     c.SwaggerEndpoint("v1/swagger.json", "PastPort API V1");
     c.RoutePrefix = "swagger";
 });
-
-app.UseAuthentication();
-app.UseAuthorization();
-
-app.UseRequestLogging();
-app.UseCustomExceptionHandler();
 
 app.MapControllers();
 

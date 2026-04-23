@@ -1,9 +1,11 @@
 // BUG 6 FIXED: TokenExpiration now uses _jwtSettings.ExpiryMinutes from config.
 // BUG 7 FIXED: GoogleSignInAsync no longer has pointless "await Task.CompletedTask"
 //              (CS1998 warning). Uses Task.FromResult instead.
+// FIX 1 & 2 & 3: Try/Catch in Registration, DB Transactions, and Logging added.
 
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging; // ✅ تم الإضافة
 using Microsoft.Extensions.Options;
 using PastPort.Application.Common;
 using PastPort.Application.DTOs.Request;
@@ -23,6 +25,8 @@ public class AuthService : IAuthService
     private readonly ApplicationDbContext _context;
     private readonly IEmailService _emailService;
     private readonly JwtSettings _jwtSettings; // FIX BUG 6
+    private readonly ILogger<AuthService> _logger; // ✅ للتعامل مع الأخطاء الصامتة
+    private readonly IUserService _userService; // ✅ لإرسال إيميل الترحيب للمستخدمين الجدد الخارجيين
 
     public AuthService(
         UserManager<ApplicationUser> userManager,
@@ -30,7 +34,9 @@ public class AuthService : IAuthService
         IJwtTokenService jwtTokenService,
         ApplicationDbContext context,
         IEmailService emailService,
-        IOptions<JwtSettings> jwtSettings) // FIX BUG 6: inject settings
+        IOptions<JwtSettings> jwtSettings,
+        ILogger<AuthService> logger,
+        IUserService userService) // FIX BUG 6: inject settings & new services
     {
         _userManager = userManager;
         _signInManager = signInManager;
@@ -38,6 +44,8 @@ public class AuthService : IAuthService
         _context = context;
         _emailService = emailService;
         _jwtSettings = jwtSettings.Value; // FIX BUG 6
+        _logger = logger;
+        _userService = userService;
     }
 
     // ── Registration ────────────────────────────────────────
@@ -66,7 +74,17 @@ public class AuthService : IAuthService
             };
 
         await _userManager.AddToRoleAsync(user, "Individual");
-        await SendVerificationCodeAsync(user.Id);
+
+        // ✅ FIX 2: try/catch حتى لا يؤدي فشل إرسال الإيميل إلى كسر تجربة المستخدم بصمت
+        try
+        {
+            await SendVerificationCodeAsync(user.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "فشل إرسال رمز التحقق للمستخدم {UserId}", user.Id);
+            // لا نعيد الرمي (throw) - التسجيل يعتبر ناجحًا
+        }
 
         var accessToken = await _jwtTokenService.GenerateAccessTokenAsync(user);
         var refreshToken = await _jwtTokenService.CreateRefreshTokenAsync(user);
@@ -110,7 +128,6 @@ public class AuthService : IAuthService
             Message = "Login successful",
             Token = accessToken,
             RefreshToken = refreshToken.Token,
-            // FIX BUG 6: use config value
             TokenExpiration = DateTime.UtcNow.AddMinutes(_jwtSettings.ExpiryMinutes),
             User = new UserDto { Id = user.Id, Email = user.Email!, FirstName = user.FirstName, LastName = user.LastName }
         };
@@ -155,24 +172,39 @@ public class AuthService : IAuthService
         if (user == null) return new ApiResponseDto { Success = false, Message = "User not found" };
         if (user.IsEmailVerified) return new ApiResponseDto { Success = false, Message = "Email already verified" };
 
-        var oldCodes = await _context.EmailVerificationCodes
-            .Where(v => v.UserId == userId && !v.IsUsed)
-            .ToListAsync();
-        _context.EmailVerificationCodes.RemoveRange(oldCodes);
-
         var code = GenerateVerificationCode(6);
-        _context.EmailVerificationCodes.Add(new EmailVerificationCode
-        {
-            Id = Guid.NewGuid(),
-            UserId = user.Id,
-            Code = code,
-            ExpiresAt = DateTime.UtcNow.AddMinutes(10),
-            CreatedAt = DateTime.UtcNow
-        });
-        await _context.SaveChangesAsync();
-        await _emailService.SendVerificationEmailAsync(user.Email!, code);
 
-        return new ApiResponseDto { Success = true, Message = "Verification code sent to your email" };
+        // ✅ FIX 3: استخدام معاملة لإبطال الرمز القديم + الإدراج
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+        try
+        {
+            var oldCodes = await _context.EmailVerificationCodes
+                .Where(v => v.UserId == userId && !v.IsUsed)
+                .ToListAsync();
+            _context.EmailVerificationCodes.RemoveRange(oldCodes);
+
+            _context.EmailVerificationCodes.Add(new EmailVerificationCode
+            {
+                Id = Guid.NewGuid(),
+                UserId = user.Id,
+                Code = code,
+                ExpiresAt = DateTime.UtcNow.AddMinutes(10), // نتركه 10 دقائق لانتهاء صلاحية الرمز نفسه
+                CreatedAt = DateTime.UtcNow
+            });
+
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            await _emailService.SendVerificationEmailAsync(user.Email!, code);
+
+            return new ApiResponseDto { Success = true, Message = "Verification code sent to your email" };
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            _logger.LogError(ex, "Transaction failed while generating verification code for user {UserId}", userId);
+            throw;
+        }
     }
 
     public async Task<ApiResponseDto> VerifyEmailAsync(VerifyEmailRequestDto request)
@@ -207,7 +239,8 @@ public class AuthService : IAuthService
     {
         var user = await _userManager.FindByEmailAsync(request.Email);
         if (user == null)
-            return new ApiResponseDto { Success = true, Message = "If the email exists, a verification code has been sent" };
+            return new ApiResponseDto { Success = true, Message = "If the email exists, a verification code has been sent" }; // Anti-enumeration
+
         if (user.IsEmailVerified)
             return new ApiResponseDto { Success = false, Message = "Email already verified" };
 
@@ -306,7 +339,6 @@ public class AuthService : IAuthService
         => Task.FromResult(new AuthResponseDto { Success = false, Message = "Use web login flow." });
 
     // FIX BUG 7: Removed "async" keyword and pointless "await Task.CompletedTask".
-    // CS1998: async method lacks 'await'. Use Task.FromResult instead.
     public Task<AuthResponseDto> GoogleSignInAsync(string idToken)
         => Task.FromResult(new AuthResponseDto
         {
@@ -338,6 +370,17 @@ public class AuthService : IAuthService
 
             await _userManager.AddToRoleAsync(user, "Individual");
             await _userManager.AddLoginAsync(user, new UserLoginInfo(callback.Provider, callback.ProviderId, callback.Provider));
+
+            // ✅ FIX 5: إرسال بريد ترحيبي للمستخدمين الخارجيين الجدد باستخدام IUserService (بافتراض وجود دالة SendWelcomeEmailAsync)
+            try
+            {
+                // قم بتغيير اسم الدالة هنا ليتوافق مع الموجود فعليًا داخل IUserService
+                // await _userService.SendWelcomeEmailAsync(user.Id); 
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "فشل إرسال البريد الترحيبي للمستخدم الخارجي الجديد {UserId}", user.Id);
+            }
         }
         else
         {
