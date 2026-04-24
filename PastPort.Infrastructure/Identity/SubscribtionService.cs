@@ -1,12 +1,13 @@
 ﻿using Microsoft.Extensions.Logging;
 using PastPort.Application.DTOs;
-using Stripe;
 using PastPort.Domain.Entities;
 using PastPort.Domain.Enums;
 using PastPort.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
+using PastPort.Domain.Exceptions; 
 using DomainTransactionStatus = PastPort.Domain.Enums.TransactionStatus;
 using DomainPlan = PastPort.Domain.Entities.Plan;
+
 namespace PastPort.Infrastructure.Identity
 {
     public class SubscriptionService : ISubscriptionService
@@ -49,7 +50,6 @@ namespace PastPort.Infrastructure.Identity
                 .FirstOrDefaultAsync(p => p.Id == planId && p.IsActive, ct);
 
             return plan is null ? null : MapPlanToDto(plan);
-            
         }
 
         // ────────────────────────────────────────────────────────
@@ -63,18 +63,7 @@ namespace PastPort.Infrastructure.Identity
         }
 
         // ────────────────────────────────────────────────────────
-        // INITIATE CHECKOUT — Step 1 of the payment flow
-        //
-        // Flow:
-        //   1. Validate the requested plan exists
-        //   2. Create UserSubscription with Status=PendingPayment
-        //   3. Create PaymentTransaction with Status=Pending
-        //   4. Call the payment gateway to create a session
-        //   5. Store the gateway payment URL on the transaction
-        //   6. Return the URL to the controller → frontend redirects user there
-        //
-        // IMPORTANT: The subscription is NOT active yet.
-        // Activation happens in the webhook handler.
+        // INITIATE CHECKOUT
         // ────────────────────────────────────────────────────────
         public async Task<InitiateCheckoutResponse> InitiateCheckoutAsync(
             string userId,
@@ -82,15 +71,15 @@ namespace PastPort.Infrastructure.Identity
             CancellationToken ct = default)
         {
             var plan = await _db.Plans.FindAsync(new object[] { request.PlanId }, ct)
-                ?? throw new InvalidOperationException($"Plan {request.PlanId} not found.");
+                ?? throw new NotFoundException("Plan", request.PlanId); // ✅ استخدام NotFoundException
 
             if (!plan.IsActive)
-                throw new InvalidOperationException("Selected plan is not available.");
+                throw new ValidationException("Selected plan is not available."); // ✅ استخدام ValidationException
 
             // ── If user already has an active sub, use ChangePlanAsync instead ──
             var existingSub = await GetActiveSubscriptionEntityAsync(userId, ct);
             if (existingSub is not null)
-                throw new InvalidOperationException(
+                throw new ValidationException( // ✅ منع تكرار الاشتراك واستخدام ValidationException
                     "User already has an active subscription. Use the upgrade/downgrade endpoint.");
 
             // ── Determine billing period dates ───────────────────
@@ -113,7 +102,6 @@ namespace PastPort.Infrastructure.Identity
             _db.UserSubscriptions.Add(subscription);
 
             // ── 2. Create the Pending transaction ────────────────
-            // Price is 0 if the plan has a trial with no charge upfront
             var chargeAmount = trialEnd.HasValue ? 0m : plan.Price;
 
             var transaction = new PaymentTransaction
@@ -151,12 +139,12 @@ namespace PastPort.Infrastructure.Identity
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Gateway session creation failed for transaction {TxId}", transaction.Id);
-                // Mark transaction as cancelled; don't expose gateway errors to client
                 transaction.Status = (DomainTransactionStatus)(System.Transactions.TransactionStatus)TransactionStatus.Cancelled;
                 transaction.FailureReason = "Gateway session creation failed.";
-                subscription.Status = SubscriptionStatus.PendingPayment; // keep for retry
+                subscription.Status = SubscriptionStatus.PendingPayment;
                 await _db.SaveChangesAsync(ct);
-                throw new InvalidOperationException("Payment gateway unavailable. Please try again.");
+
+                throw new ValidationException("Payment gateway unavailable. Please try again."); // ✅ 
             }
 
             // ── 5. Persist gateway IDs ────────────────────────────
@@ -177,7 +165,7 @@ namespace PastPort.Infrastructure.Identity
         }
 
         // ────────────────────────────────────────────────────────
-        // ACTIVATE SUBSCRIPTION — Called by webhook handler on success
+        // ACTIVATE SUBSCRIPTION
         // ────────────────────────────────────────────────────────
         public async Task ActivateSubscriptionAsync(Guid transactionId, CancellationToken ct = default)
         {
@@ -185,7 +173,7 @@ namespace PastPort.Infrastructure.Identity
                 .Include(t => t.UserSubscription)
                 .Include(t => t.Invoice)
                 .FirstOrDefaultAsync(t => t.Id == transactionId, ct)
-                ?? throw new InvalidOperationException($"Transaction {transactionId} not found.");
+                ?? throw new NotFoundException("Transaction", transactionId); // ✅ استخدام NotFoundException
 
             var sub = tx.UserSubscription;
 
@@ -219,7 +207,7 @@ namespace PastPort.Infrastructure.Identity
         }
 
         // ────────────────────────────────────────────────────────
-        // HANDLE FAILED PAYMENT — Called by webhook handler on failure
+        // HANDLE FAILED PAYMENT
         // ────────────────────────────────────────────────────────
         public async Task HandleFailedPaymentAsync(
             Guid transactionId, string reason, CancellationToken ct = default)
@@ -227,14 +215,12 @@ namespace PastPort.Infrastructure.Identity
             var tx = await _db.PaymentTransactions
                 .Include(t => t.UserSubscription)
                 .FirstOrDefaultAsync(t => t.Id == transactionId, ct)
-                ?? throw new InvalidOperationException($"Transaction {transactionId} not found.");
+                ?? throw new NotFoundException("Transaction", transactionId); // ✅ استخدام NotFoundException
 
             tx.Status = (DomainTransactionStatus)(System.Transactions.TransactionStatus)TransactionStatus.Failed;
             tx.FailureReason = reason;
             tx.ProcessedAt = DateTime.UtcNow;
 
-            // If subscription was never activated, mark it as PendingPayment
-            // so the user can retry. If it was active (renewal failure), mark PastDue.
             var sub = tx.UserSubscription;
             sub.Status = sub.Status == SubscriptionStatus.Active
                 ? SubscriptionStatus.PastDue
@@ -250,10 +236,6 @@ namespace PastPort.Infrastructure.Identity
 
         // ────────────────────────────────────────────────────────
         // CHANGE PLAN (Upgrade / Downgrade)
-        //
-        // Proration Logic:
-        //   Credit = OldPlanDailyRate × DaysRemaining
-        //   Charge = NewPlanPrice − Credit  (0 if negative → credit stored)
         // ────────────────────────────────────────────────────────
         public async Task<UserSubscriptionDto> ChangePlanAsync(
             string userId,
@@ -261,13 +243,13 @@ namespace PastPort.Infrastructure.Identity
             CancellationToken ct = default)
         {
             var currentSub = await GetActiveSubscriptionEntityAsync(userId, ct, includePlan: true)
-                ?? throw new InvalidOperationException("No active subscription found.");
+                ?? throw new ValidationException("No active subscription found."); // ✅ 
 
             if (currentSub.PlanId == request.NewPlanId)
-                throw new InvalidOperationException("User is already on this plan.");
+                throw new ValidationException("User is already on this plan."); // ✅ 
 
             var newPlan = await _db.Plans.FindAsync(new object[] { request.NewPlanId }, ct)
-                ?? throw new InvalidOperationException($"Plan {request.NewPlanId} not found.");
+                ?? throw new NotFoundException("Plan", request.NewPlanId); // ✅ 
 
             decimal prorationCredit = 0;
             if (request.ApplyProration)
@@ -298,7 +280,6 @@ namespace PastPort.Infrastructure.Identity
                 Amount = chargeAmount,
                 Currency = newPlan.Currency,
                 Status = (DomainTransactionStatus)(System.Transactions.TransactionStatus)TransactionStatus.Pending,
-                // In production, charge this via gateway immediately for upgrades
             };
             _db.PaymentTransactions.Add(newTx);
             await _db.SaveChangesAsync(ct);
@@ -312,12 +293,11 @@ namespace PastPort.Infrastructure.Identity
 
         // ────────────────────────────────────────────────────────
         // CANCEL SUBSCRIPTION
-        // Sets CancelledAt; access continues until CurrentPeriodEnd.
         // ────────────────────────────────────────────────────────
         public async Task CancelSubscriptionAsync(string userId, CancellationToken ct = default)
         {
             var sub = await GetActiveSubscriptionEntityAsync(userId, ct)
-                ?? throw new InvalidOperationException("No active subscription to cancel.");
+                ?? throw new ValidationException("No active subscription to cancel."); // ✅ 
 
             sub.Status = SubscriptionStatus.Cancelled;
             sub.AutoRenew = false;
@@ -335,13 +315,9 @@ namespace PastPort.Infrastructure.Identity
         {
             var sub = await GetActiveSubscriptionEntityAsync(userId, ct);
 
-            // No active subscription → no access
             if (sub is null) return false;
-
-            // Subscription expired
             if (sub.CurrentPeriodEnd < DateTime.UtcNow) return false;
 
-            // Check if the plan includes the requested feature
             return await _db.PlanFeatures
                 .AsNoTracking()
                 .AnyAsync(pf =>
@@ -361,8 +337,8 @@ namespace PastPort.Infrastructure.Identity
             var query = _db.UserSubscriptions
             .Where(s => s.UserId == userId &&
                             (s.Status == SubscriptionStatus.Active ||
-            s.Status == SubscriptionStatus.Trialing ||
-                             s.Status == SubscriptionStatus.Cancelled));  // Cancelled = still has access
+             s.Status == SubscriptionStatus.Trialing ||
+                              s.Status == SubscriptionStatus.Cancelled));
 
             if (includePlan)
                 query = query.Include(s => s.Plan);
@@ -387,7 +363,6 @@ namespace PastPort.Infrastructure.Identity
         private static PastPort.Domain.Entities.Invoice CreateDraftInvoice(
             string userId, Guid subscriptionId, Guid transactionId, PastPort.Domain.Entities.Plan plan)
         {
-            // Invoice number format: INV-YYYYMMDD-{random 6 chars}
             var invoiceNumber = $"INV-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..6].ToUpper()}";
             return new PastPort.Domain.Entities.Invoice
             {
