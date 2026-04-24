@@ -29,7 +29,7 @@ namespace PastPort.Domain.Entities
         public string Currency { get; set; } = "USD";
 
         public PastPort.Domain.Enums.TransactionStatus Status { get; set; } = PastPort.Domain.Enums.TransactionStatus.Pending;
-
+        public virtual  ApplicationUser? User { get; set; }
         public PaymentGateway Gateway { get; set; }
 
         /// <summary>Gateway-assigned charge/payment-intent ID.</summary>

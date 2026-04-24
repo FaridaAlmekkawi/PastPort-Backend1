@@ -19,6 +19,7 @@ namespace PastPort.Domain.Entities
 
         public Guid PlanId { get; set; }
         public Plan Plan { get; set; } = default!;
+        public virtual  ApplicationUser? User { get; set; }
 
         public SubscriptionStatus Status { get; set; } = SubscriptionStatus.PendingPayment;
 
@@ -58,6 +59,8 @@ namespace PastPort.Domain.Entities
         // ── Navigation ──────────────────────────────────────────
         public ICollection<PaymentTransaction> Transactions { get; set; } = new List<PaymentTransaction>();
         public ICollection<Invoice> Invoices { get; set; } = new List<Invoice>();
+
+
     }
 
 }
