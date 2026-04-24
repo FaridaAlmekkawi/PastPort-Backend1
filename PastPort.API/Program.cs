@@ -15,7 +15,7 @@ using PastPort.Infrastructure.Data.Repositories;
 using PastPort.Infrastructure.ExternalServices.AI;
 using PastPort.Infrastructure.ExternalServices.Payment;
 using PastPort.Infrastructure.ExternalServices.Storage;
-using AspNetCoreRateLimit; // تم الإضافة عشان الـ Rate Limiting
+using AspNetCoreRateLimit;
 using Serilog;
 using PastPort.Application.Services;
 
@@ -55,7 +55,7 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 .AddEntityFrameworkStores<ApplicationDbContext>()
 .AddDefaultTokenProviders();
 
-// --- JWT & Authentication (FIX 1: تم ربط Google و Facebook بشكل صحيح)
+// --- JWT & Authentication
 var jwtSettingsSection = builder.Configuration.GetSection("JwtSettings");
 builder.Services.Configure<JwtSettings>(jwtSettingsSection);
 var secretKey = jwtSettingsSection["SecretKey"];
@@ -101,7 +101,7 @@ builder.Services.AddAuthentication(options =>
     Log.Information("✅ Facebook Authentication enabled");
 });
 
-// --- Rate Limiting (FIX 3: تم إضافة إعدادات الـ Rate Limit)
+// --- Rate Limiting
 builder.Services.AddMemoryCache();
 builder.Services.Configure<IpRateLimitOptions>(builder.Configuration.GetSection("IpRateLimiting"));
 builder.Services.AddSingleton<IIpPolicyStore, MemoryCacheIpPolicyStore>();
@@ -129,7 +129,7 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IPaymentService, PayPalService>();
 builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
-builder.Services.AddScoped<IAIConversationService, MockAIConversationService>(); // خلي بالك لو عندك NpcAIService حقيقي الأفضل تستخدمه
+builder.Services.AddScoped<IAIConversationService, MockAIConversationService>();
 
 // --- External configs
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
@@ -137,13 +137,17 @@ builder.Services.Configure<PayPalSettings>(builder.Configuration.GetSection("Pay
 builder.Services.Configure<NpcAISettings>(builder.Configuration.GetSection("NpcAI"));
 builder.Services.AddHttpClient<INpcAIService, NpcAIService>();
 
-// ✅ التعديل الجديد: إعداد Redis وربط الـ Session Store الجديد
+// --- Redis
 builder.Services.AddSingleton<StackExchange.Redis.IConnectionMultiplexer>(sp =>
-    StackExchange.Redis.ConnectionMultiplexer.Connect(
-        builder.Configuration.GetConnectionString("Redis") ?? "localhost:6379"));
+{
+    var redisConnString = builder.Configuration.GetConnectionString("Redis") ?? "localhost:6379";
+    var options = StackExchange.Redis.ConfigurationOptions.Parse(redisConnString);
+    options.AbortOnConnectFail = false;
+    return StackExchange.Redis.ConnectionMultiplexer.Connect(options);
+});
 
-// ربط الإنترفيس بالكلاس الجديد اللي بيستخدم Redis
 builder.Services.AddSingleton<INpcSessionStore, RedisNpcSessionStore>();
+
 // --- Swagger
 builder.Services.AddSwaggerGen(options =>
 {
@@ -175,30 +179,27 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 // --- CORS
-// الحل السريع ✅
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.SetIsOriginAllowed(origin => true) // دي بتخدع الـ CORS وتسمح بأي دومين بشكل قانوني
+        policy.SetIsOriginAllowed(origin => true)
               .AllowAnyMethod()
               .AllowAnyHeader()
               .AllowCredentials();
     });
 });
+
 // ==================================================
 // BUILD
 // ==================================================
 var app = builder.Build();
 
 // ==================================================
-// MIDDLEWARE PIPELINE (FIX 2: ترتيب الـ Middleware)
+// MIDDLEWARE PIPELINE
 // ==================================================
 
-// 1. Exception Handler MUST be FIRST
 app.UseCustomExceptionHandler();
-
-// 2. Request Logging SECOND (عشان يسجل كل الـ Requests حتى اللي بتضرب Errors)
 app.UseRequestLogging();
 
 if (app.Environment.IsDevelopment())
@@ -207,53 +208,52 @@ if (app.Environment.IsDevelopment())
 }
 else
 {
-    // لو مش Development ممكن نستخدم Hsts
     app.UseHsts();
 }
 
-// 🔥 FIX CORS Headers (مهم للاستضافة)
-app.Use(async (context, next) =>
-{
-    context.Response.Headers["Access-Control-Allow-Origin"] = "*";
-    await next();
-});
+// ❌ تم إيقاف السطر ده لأنه بيوقع السيرفر على استضافتك
+// app.UseHttpsRedirection(); 
 
-app.UseHttpsRedirection();
 app.UseStaticFiles();
 
 app.UseRouting();
 
-// 3. Rate Limiting Middleware (يُفضل يكون بعد الـ Routing وقبل الـ Auth)
 app.UseIpRateLimiting();
 
-app.UseCors(app.Environment.IsDevelopment() ? "Development" : "Production");
+app.UseCors("AllowAll");
 
 app.UseAuthentication();
 app.UseAuthorization();
 
-// 🔥 Swagger FIX
+// 🔥 Swagger
 app.UseSwagger();
-app.UseSwaggerUI(c =>
+app.UseSwaggerUI(options =>
 {
-    c.SwaggerEndpoint("v1/swagger.json", "PastPort API V1");
-    c.RoutePrefix = "swagger";
+    options.SwaggerEndpoint("./v1/swagger.json", "PastPort API v1");
+    options.RoutePrefix = "swagger";
 });
 
 app.MapControllers();
 
 // ==================================================
-// SEEDING
+// SEEDING (✅ تم إضافة الحماية هنا)
 // ==================================================
 using (var scope = app.Services.CreateScope())
 {
-    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-
-    string[] roles = { "Admin", "School", "Museum", "Enterprise", "Individual" };
-
-    foreach (var role in roles)
+    try
     {
-        if (!await roleManager.RoleExistsAsync(role))
-            await roleManager.CreateAsync(new IdentityRole(role));
+        var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+        string[] roles = { "Admin", "School", "Museum", "Enterprise", "Individual" };
+
+        foreach (var role in roles)
+        {
+            if (!await roleManager.RoleExistsAsync(role))
+                await roleManager.CreateAsync(new IdentityRole(role));
+        }
+    }
+    catch (Exception ex)
+    {
+        Log.Error(ex, "حدث خطأ أثناء محاولة الاتصال بقاعدة البيانات في مرحلة الـ Seeding.");
     }
 }
 
