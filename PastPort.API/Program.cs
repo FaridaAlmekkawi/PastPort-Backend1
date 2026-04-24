@@ -175,22 +175,17 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 // --- CORS
+// الحل السريع ✅
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("Development", p =>
-        p.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
-
-    options.AddPolicy("Production", p =>
+    options.AddPolicy("AllowAll", policy =>
     {
-        var origins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
-
-        p.WithOrigins(origins)
-         .AllowAnyMethod()
-         .AllowAnyHeader()
-         .AllowCredentials();
+        policy.SetIsOriginAllowed(origin => true) // دي بتخدع الـ CORS وتسمح بأي دومين بشكل قانوني
+              .AllowAnyMethod()
+              .AllowAnyHeader()
+              .AllowCredentials();
     });
 });
-
 // ==================================================
 // BUILD
 // ==================================================
