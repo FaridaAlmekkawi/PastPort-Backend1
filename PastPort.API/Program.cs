@@ -17,6 +17,7 @@ using PastPort.Infrastructure.ExternalServices.Payment;
 using PastPort.Infrastructure.ExternalServices.Storage;
 using AspNetCoreRateLimit; // تم الإضافة عشان الـ Rate Limiting
 using Serilog;
+using PastPort.Application.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -122,7 +123,7 @@ builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ISceneService, SceneService>();
 builder.Services.AddScoped<ICharacterService, CharacterService>();
-builder.Services.AddScoped<IConversationService, ConversationService>();
+builder.Services.AddScoped<IConversationService,ConversationService>();
 builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IUserService, UserService>();

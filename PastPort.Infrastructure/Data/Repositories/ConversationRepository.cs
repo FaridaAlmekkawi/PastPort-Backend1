@@ -36,4 +36,14 @@ public class ConversationRepository : Repository<Conversation>, IConversationRep
             .OrderBy(c => c.CreatedAt)
             .ToListAsync();
     }
+
+    // ✅ الدالة الجديدة اللي بتحل مشكلة الإيرور ومسؤولة عن تحسين الأداء (N+1 Query)
+    public async Task<IEnumerable<Conversation>> GetUserConversationsWithCharactersAsync(string userId)
+    {
+        return await _dbSet
+            .Where(c => c.UserId == userId)
+            .Include(c => c.Character) // بنجيب بيانات الشخصية في نفس الطلب
+            .OrderByDescending(c => c.CreatedAt)
+            .ToListAsync();
+    }
 }

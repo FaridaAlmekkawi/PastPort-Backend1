@@ -17,4 +17,5 @@ public class Conversation
 
     // Navigation Properties
     public ApplicationUser User { get; set; } = null!;
+    public Character Character { get; set; } = null!;
 }

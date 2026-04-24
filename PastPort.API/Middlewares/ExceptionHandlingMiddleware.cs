@@ -1,5 +1,6 @@
-using System.Net;
+﻿using System.Net;
 using System.Text.Json;
+using PastPort.Domain.Exceptions; // تأكد من إضافة هذا الـ using
 
 namespace PastPort.API.Middlewares;
 
@@ -31,20 +32,30 @@ public class ExceptionHandlingMiddleware
 
     private static Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
-        var statusCode = HttpStatusCode.InternalServerError;
-        var message = "An error occurred while processing your request";
-
-        if (exception is UnauthorizedAccessException)
+        // استخدام switch expression لتحديد حالة الكود والرسالة بشكل نظيف
+        var (statusCode, message) = exception switch
         {
-            statusCode = HttpStatusCode.Unauthorized;
-            message = "Unauthorized access";
-        }
-        else if (exception is ArgumentException or InvalidOperationException)
-        {
-            statusCode = HttpStatusCode.BadRequest;
-            message = exception.Message;
-        }
+            UnauthorizedAccessException =>
+                (HttpStatusCode.Unauthorized, "Unauthorized access"),
 
+            NotFoundException =>
+                (HttpStatusCode.NotFound, exception.Message),
+
+            ValidationException =>
+                (HttpStatusCode.BadRequest, exception.Message),
+
+            ArgumentException =>
+                (HttpStatusCode.BadRequest, "Invalid request parameters"),
+
+            // منع تسريب تفاصيل الخطأ الداخلية في الـ Production
+            InvalidOperationException =>
+                (HttpStatusCode.BadRequest, "The operation could not be completed"),
+
+            _ =>
+                (HttpStatusCode.InternalServerError, "An error occurred while processing your request")
+        };
+
+        // من أفضل الممارسات تحديد الـ ContentType قبل الـ StatusCode
         context.Response.ContentType = "application/json";
         context.Response.StatusCode = (int)statusCode;
 
@@ -52,7 +63,7 @@ public class ExceptionHandlingMiddleware
         {
             error = message,
             statusCode = (int)statusCode,
-            timestamp = DateTime.UtcNow
+            timestamp = DateTime.UtcNow.ToString("O") // تنسيق ISO 8601 للوقت
         };
 
         var jsonResponse = JsonSerializer.Serialize(response);

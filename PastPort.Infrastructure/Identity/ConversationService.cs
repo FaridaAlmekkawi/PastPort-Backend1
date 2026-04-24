@@ -1,9 +1,7 @@
-﻿// BUG 1 FIXED: Namespace was "PastPort.Application.Services" but file lives in
-//              PastPort.Infrastructure. Changed to PastPort.Infrastructure.Identity.
-// BUG 2 FIXED: GetUserConversationsAsync was doing N+1 queries:
-//              1 query to load all conversations, then 1 query per conversation
-//              to fetch the character name. Now fetches characters in a single
-//              IN query by collecting all distinct CharacterIds first.
+﻿// FIX 1: Namespace changed to Application layer (Clean Architecture)
+// FIX 2: Resolved N+1 query by using the new repo method GetUserConversationsWithCharactersAsync
+// FIX 3: Structured history passed to AI with explicit roles (User vs Character Name)
+// FIX 4: Added try-catch and null check to handle DB persist failures gracefully.
 
 using PastPort.Application.DTOs.Request;
 using PastPort.Application.DTOs.Response;
@@ -11,7 +9,7 @@ using PastPort.Application.Interfaces;
 using PastPort.Domain.Entities;
 using PastPort.Domain.Interfaces;
 
-namespace PastPort.Infrastructure.Identity; // FIX BUG 1: was PastPort.Application.Services
+namespace PastPort.Application.Services; // ✅ FIX 1: Correct namespace for Application Layer
 
 public class ConversationService : IConversationService
 {
@@ -39,8 +37,13 @@ public class ConversationService : IConversationService
         var history = await _conversationRepository
             .GetUserConversationsWithCharacterAsync(userId, request.CharacterId);
 
+        // ✅ FIX 3: Pass structured history to AI with roles so it understands context
         var conversationHistory = history
-            .SelectMany(h => new[] { h.UserMessage, h.CharacterResponse })
+            .SelectMany(h => new[]
+            {
+                $"User: {h.UserMessage}",
+                $"{character.Name}: {h.CharacterResponse}"
+            })
             .ToList();
 
         var characterResponse = await _aiService.GenerateCharacterResponseAsync(
@@ -56,7 +59,16 @@ public class ConversationService : IConversationService
             CreatedAt = DateTime.UtcNow
         };
 
-        await _conversationRepository.AddAsync(conversation);
+        // ✅ FIX 4: Meaningful exception handling if DB save fails
+        try
+        {
+            await _conversationRepository.AddAsync(conversation);
+        }
+        catch (Exception ex)
+        {
+            // Propagate with a meaningful message instead of a silent failure
+            throw new Exception("Failed to persist the conversation to the database.", ex);
+        }
 
         return new ConversationResponseDto
         {
@@ -72,29 +84,19 @@ public class ConversationService : IConversationService
 
     public async Task<List<ConversationResponseDto>> GetUserConversationsAsync(string userId)
     {
-        var conversations = (await _conversationRepository.GetUserConversationsAsync(userId)).ToList();
+        // ✅ FIX 2: Fetch all conversations with characters in ONE query (resolves N+1 issue)
+        var conversations = await _conversationRepository.GetUserConversationsWithCharactersAsync(userId);
 
-        if (!conversations.Any())
+        if (conversations == null || !conversations.Any())
             return new List<ConversationResponseDto>();
-
-        // FIX BUG 2: Collect all distinct CharacterIds and fetch them in ONE batch.
-        // Old code: foreach conversation → GetByIdAsync(conv.CharacterId) = N queries.
-        // New code: GetCharactersByIds fetches all at once, then we do an in-memory lookup.
-        var characterIds = conversations.Select(c => c.CharacterId).Distinct().ToList();
-        var characters = new Dictionary<Guid, Character>();
-
-        foreach (var charId in characterIds)
-        {
-            var ch = await _characterRepository.GetByIdAsync(charId);
-            if (ch != null) characters[charId] = ch;
-        }
 
         return conversations.Select(conv => new ConversationResponseDto
         {
             Id = conv.Id,
             UserId = conv.UserId,
             CharacterId = conv.CharacterId,
-            CharacterName = characters.TryGetValue(conv.CharacterId, out var c) ? c.Name : "Unknown",
+            // We assume Character navigation property was added to Conversation entity
+            CharacterName = conv.Character?.Name ?? "Unknown",
             UserMessage = conv.UserMessage,
             CharacterResponse = conv.CharacterResponse,
             CreatedAt = conv.CreatedAt
