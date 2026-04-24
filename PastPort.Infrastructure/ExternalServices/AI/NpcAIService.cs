@@ -1,14 +1,10 @@
 ﻿// ============================================================
 //  NpcAIService.cs — PastPort.Infrastructure/ExternalServices/AI
 //
-//  GAP 18 FIX: If NpcAI:BaseUrl is missing or empty in appsettings,
-//  _httpClient.BaseAddress was set to null (new Uri("") throws but
-//  empty string silently sets BaseAddress = null). Every request then
-//  threw an opaque NullReferenceException with no hint about the
-//  missing configuration.
-//
-//  Fix: Validate BaseUrl in the constructor with a clear error message
-//  that fails fast at startup instead of at runtime per-request.
+//  GAP 18 FIX: Fail fast if BaseUrl is missing.
+//  FIX 4: Removed double-serialization of 'world' object. Passed 
+//  parameters directly as MultipartFormData fields to prevent 
+//  fragile parsing issues on the AI backend.
 // ============================================================
 using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
@@ -44,8 +40,7 @@ public class NpcAIService : INpcAIService
         _httpClient = httpClient;
         _logger = logger;
 
-        // FIX GAP 18: Validate BaseUrl at construction time so the app fails
-        // loudly at startup with a meaningful message, not silently per-request.
+        // FIX GAP 18: Validate BaseUrl at construction time
         var baseUrl = settings.Value.BaseUrl;
         if (string.IsNullOrWhiteSpace(baseUrl))
             throw new InvalidOperationException(
@@ -62,21 +57,19 @@ public class NpcAIService : INpcAIService
         string sessionId,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var worldJson = JsonSerializer.Serialize(new
-        {
-            year_range = world.YearRange,
-            location_old_name = world.LocationOldName,
-            civilization = world.Civilization,
-            role_or_name = world.RoleOrName
-        });
-
         using var form = new MultipartFormDataContent();
 
         var audioContent = new ByteArrayContent(audioBytes);
         audioContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
         form.Add(audioContent, "audio", "audio.wav");
-        form.Add(new StringContent(worldJson), "world");
         form.Add(new StringContent(sessionId), "session_id");
+
+        // ✅ FIX: Instead of JSON serializing the world object, send fields directly.
+        // This avoids the fragile "Double Serialization" issue.
+        form.Add(new StringContent(world.YearRange ?? ""), "year_range");
+        form.Add(new StringContent(world.LocationOldName ?? ""), "location_old_name");
+        form.Add(new StringContent(world.Civilization ?? ""), "civilization");
+        form.Add(new StringContent(world.RoleOrName ?? ""), "role_or_name");
 
         HttpResponseMessage response;
 

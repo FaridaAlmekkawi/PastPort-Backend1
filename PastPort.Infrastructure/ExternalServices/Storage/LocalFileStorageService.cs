@@ -1,10 +1,8 @@
-﻿// ✅ FIXED: LocalFileStorageService.cs
-// المشكلة الأصلية في IsValidContentType:
-//    if (!validTypes.ContainsKey(extension))
-//        return true; // للملفات الجديدة
-// ده كان بيخلي أي extension مش موجود في القاموس يعدي!
-// يعني حد يرفع ملف .exe أو .php أو .sh وهيعدي validation بدون أي مشكلة.
-// الحل: رفضنا كل extension مش موجود في القاموس بدل قبوله.
+﻿// ✅ FIXED: IsValidContentType validation mapping
+// ✅ FIX 1: Added GetFileStreamAsync to return Stream instead of byte[] for large files
+// ✅ FIX 3: Null-safe upload path (fallback to ContentRootPath/wwwroot)
+// ✅ FIX 4: Check size before streaming/reading (500MB limit)
+// ✅ FIXED: Regex pattern string format inconsistency
 
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -21,9 +19,7 @@ public class LocalFileStorageService : IFileStorageService
 
     private const long MaxTotalUploadSize = 1000 * 1024 * 1024; // 1GB
 
-    // ✅ FIXED: نقلنا validTypes لـ static readonly field بدل ما تتعمل
-    // dictionary جديدة في كل call لـ IsValidContentType.
-    // ده بيحسن الـ performance لأن الـ dictionary بتتبنى مرة واحدة بس.
+    // ✅ FIXED: نقلنا validTypes لـ static readonly field 
     private static readonly Dictionary<string, string[]> _validContentTypes =
         new(StringComparer.OrdinalIgnoreCase)
         {
@@ -48,7 +44,12 @@ public class LocalFileStorageService : IFileStorageService
     {
         _environment = environment;
         _logger = logger;
-        _uploadPath = Path.Combine(_environment.WebRootPath, "uploads");
+
+        // ✅ FIX 3: Fallback if WebRootPath is null (e.g., no wwwroot in Docker/Linux)
+        var webRoot = _environment.WebRootPath
+            ?? Path.Combine(_environment.ContentRootPath, "wwwroot");
+
+        _uploadPath = Path.Combine(webRoot, "uploads");
 
         if (!Directory.Exists(_uploadPath))
         {
@@ -142,7 +143,35 @@ public class LocalFileStorageService : IFileStorageService
     }
 
     /// <summary>
-    /// الحصول على محتوى الملف
+    /// ✅ FIX 1 & 4: الحصول على محتوى الملف كـ Stream للملفات الكبيرة (مثل 3D Models)
+    /// </summary>
+    public Task<Stream> GetFileStreamAsync(string fileUrl)
+    {
+        var relativePath = fileUrl.Replace("/uploads/", "")
+            .Replace('/', Path.DirectorySeparatorChar);
+        var filePath = Path.Combine(_uploadPath, relativePath);
+
+        var fullPath = Path.GetFullPath(filePath);
+        var fullUploadPath = Path.GetFullPath(_uploadPath);
+
+        if (!fullPath.StartsWith(fullUploadPath, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("محاولة الوصول إلى ملف خارج المسار المسموح");
+
+        if (!File.Exists(filePath))
+            throw new FileNotFoundException($"الملف غير موجود: {fileUrl}");
+
+        // ✅ FIX 4: Check size before streaming
+        var fileInfo = new FileInfo(filePath);
+        if (fileInfo.Length > 500 * 1024 * 1024) // 500MB hard limit
+            throw new InvalidOperationException("File too large to serve");
+
+        return Task.FromResult<Stream>(new FileStream(
+            filePath, FileMode.Open, FileAccess.Read, FileShare.Read,
+            bufferSize: 81920, useAsync: true));
+    }
+
+    /// <summary>
+    /// الحصول على محتوى الملف بالكامل (للملفات الصغيرة فقط)
     /// </summary>
     public async Task<byte[]> GetFileAsync(string fileUrl)
     {
@@ -160,6 +189,11 @@ public class LocalFileStorageService : IFileStorageService
 
             if (!File.Exists(filePath))
                 throw new FileNotFoundException($"الملف غير موجود: {fileUrl}");
+
+            // ✅ إضافة حماية هنا أيضاً للملفات الضخمة حتى لو تم استدعاؤها بالخطأ
+            var fileInfo = new FileInfo(filePath);
+            if (fileInfo.Length > 50 * 1024 * 1024) // منع تحميل أكثر من 50 ميجا كـ ByteArray
+                throw new InvalidOperationException("الملف كبير جداً للقراءة في الذاكرة بالكامل. استخدم GetFileStreamAsync بدلاً من ذلك.");
 
             return await File.ReadAllBytesAsync(filePath);
         }
@@ -292,31 +326,21 @@ public class LocalFileStorageService : IFileStorageService
         var fileExtension = Path.GetExtension(originalFileName);
         var fileName = Path.GetFileNameWithoutExtension(originalFileName);
 
+        // ✅ FIXED: تم إزالة @ لتجنب أي مشاكل في الـ Regex وتوحيد الشكل
         var safeName = System.Text.RegularExpressions.Regex.Replace(
-            fileName, @"[^a-zA-Z0-9_-]", "_");
+            fileName, "[^a-zA-Z0-9_-]", "_");
 
         return $"{safeName}_{Guid.NewGuid().ToString()[..8]}{fileExtension}";
     }
 
-    /// <summary>
-    /// ✅ FIXED: التحقق من توافق Content Type مع الامتداد
-    /// الكود القديم كان يرجع true لأي extension مش موجود في القاموس
-    /// ده كان بيسمح بـ .exe, .php, .sh وغيرها تعدي validation بسهولة.
-    /// دلوقتي أي extension مش موجود في القاموس بيترفض تلقائياً.
-    /// </summary>
     private static bool IsValidContentType(string? contentType, string extension)
     {
-        // ✅ FIXED: من true لـ false
-        // القاموس بيحدد الـ extensions المسموح بيها بالضبط.
-        // أي extension تاني (زي .exe, .php, .sh) بيترفض.
         if (!_validContentTypes.ContainsKey(extension))
             return false;
 
         if (string.IsNullOrEmpty(contentType))
             return false;
 
-        // ✅ FIXED: أضفنا .ToLowerInvariant() عشان الـ comparison يكون case-insensitive
-        // بعض clients بيبعتوا "Image/JPEG" بـ uppercase
         return _validContentTypes[extension].Contains(
             contentType.ToLowerInvariant());
     }

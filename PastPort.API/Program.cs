@@ -110,7 +110,7 @@ builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>()
 builder.Services.AddSingleton<IProcessingStrategy, AsyncKeyLockProcessingStrategy>();
 builder.Services.AddInMemoryRateLimiting();
 
-// --- DI (تم التأكد من وجود IPaymentRepository)
+// --- DI
 builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 builder.Services.AddScoped<ISceneRepository, SceneRepository>();
 builder.Services.AddScoped<ICharacterRepository, CharacterRepository>();
@@ -123,14 +123,13 @@ builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ISceneService, SceneService>();
 builder.Services.AddScoped<ICharacterService, CharacterService>();
-builder.Services.AddScoped<IConversationService,ConversationService>();
+builder.Services.AddScoped<IConversationService, ConversationService>();
 builder.Services.AddScoped<ISubscriptionService, SubscriptionService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IPaymentService, PayPalService>();
 builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
-builder.Services.AddScoped<IAIConversationService, MockAIConversationService>();
-builder.Services.AddSingleton<INpcSessionStore, NpcSessionStore>();
+builder.Services.AddScoped<IAIConversationService, MockAIConversationService>(); // خلي بالك لو عندك NpcAIService حقيقي الأفضل تستخدمه
 
 // --- External configs
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
@@ -138,6 +137,13 @@ builder.Services.Configure<PayPalSettings>(builder.Configuration.GetSection("Pay
 builder.Services.Configure<NpcAISettings>(builder.Configuration.GetSection("NpcAI"));
 builder.Services.AddHttpClient<INpcAIService, NpcAIService>();
 
+// ✅ التعديل الجديد: إعداد Redis وربط الـ Session Store الجديد
+builder.Services.AddSingleton<StackExchange.Redis.IConnectionMultiplexer>(sp =>
+    StackExchange.Redis.ConnectionMultiplexer.Connect(
+        builder.Configuration.GetConnectionString("Redis") ?? "localhost:6379"));
+
+// ربط الإنترفيس بالكلاس الجديد اللي بيستخدم Redis
+builder.Services.AddSingleton<INpcSessionStore, RedisNpcSessionStore>();
 // --- Swagger
 builder.Services.AddSwaggerGen(options =>
 {

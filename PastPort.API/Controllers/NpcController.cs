@@ -1,10 +1,9 @@
 ﻿// ============================================================
 //  NpcController.cs — PastPort.API/Controllers
 //
-//  GAP 11 FIX: Audio null check was AFTER session null check.
-//  If both are missing, user got "Session not found" (404) instead
-//  of "Audio is required" (400) — wrong error, confuses the client.
-//  Audio validation now comes first since it's a client-side error.
+//  GAP 11 FIX: Audio validation now comes first.
+//  FIX 3: Added RequestSizeLimit and RequestFormLimits to prevent
+//  Memory Exhaustion from massive malicious uploads.
 // ============================================================
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -31,11 +30,6 @@ public class NpcController : BaseApiController
         _logger = logger;
     }
 
-    /// <summary>
-    /// Flutter calls this first to register world context and receive a sessionId.
-    /// POST /api/npc/session/start
-    /// Body: { "yearRange": "...", "locationOldName": "...", "civilization": "..." }
-    /// </summary>
     [HttpPost("session/start")]
     public IActionResult StartSession([FromBody] StartSessionRequest request)
     {
@@ -55,17 +49,10 @@ public class NpcController : BaseApiController
         return Ok(new { sessionId });
     }
 
-    /// <summary>
-    /// Unity calls this to send voice audio and receive a streamed NPC response.
-    /// POST /api/npc/stream   (multipart/form-data)
-    /// Form fields: audio (file), sessionId (string), roleOrName (string)
-    ///
-    /// FIX: Audio is validated FIRST — it's a 400 client error.
-    ///      Session is validated SECOND — it's a 404 not-found error.
-    ///      Old code had them reversed, producing a confusing 404 when
-    ///      the real problem was a missing audio field.
-    /// </summary>
+    // ✅ FIX 3: Add request size limits (10MB max) to protect server memory
     [HttpPost("stream")]
+    [RequestSizeLimit(10 * 1024 * 1024)] // 10MB limit for the overall request
+    [RequestFormLimits(MultipartBodyLengthLimit = 10 * 1024 * 1024)] // 10MB limit for the form body
     public async Task Stream(
         [FromForm] IFormFile audio,
         [FromForm] string sessionId,
@@ -122,10 +109,6 @@ public class NpcController : BaseApiController
         }
     }
 
-    /// <summary>
-    /// Ends the session and frees in-memory state.
-    /// POST /api/npc/session/end
-    /// </summary>
     [HttpPost("session/end")]
     public IActionResult EndSession([FromBody] EndSessionRequest request)
     {

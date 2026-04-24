@@ -12,4 +12,5 @@ public interface IFileStorageService
     Task<bool> DeleteFolderAsync(string folder);
     long GetFileSize(string fileUrl);
     bool FileExists(string fileUrl);
+    Task<Stream> GetFileStreamAsync(string fileUrl);
 }
