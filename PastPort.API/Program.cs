@@ -18,6 +18,7 @@ using PastPort.Infrastructure.ExternalServices.Storage;
 using AspNetCoreRateLimit;
 using Serilog;
 using PastPort.Application.Services;
+using PastPort.API.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -101,8 +102,13 @@ builder.Services.AddAuthentication(options =>
     Log.Information("✅ Facebook Authentication enabled");
 });
 
-// --- Rate Limiting
-builder.Services.AddMemoryCache();
+// 🟢 --- Rate Limiting & Memory Cache (تم تحديث الـ MemoryCache هنا) ---
+builder.Services.AddMemoryCache(options =>
+{
+    options.SizeLimit = 10_000; // max concurrent sessions
+    options.ExpirationScanFrequency = TimeSpan.FromMinutes(5);
+    options.CompactionPercentage = 0.20; // remove 20% oldest when limit hit
+});
 builder.Services.Configure<IpRateLimitOptions>(builder.Configuration.GetSection("IpRateLimiting"));
 builder.Services.AddSingleton<IIpPolicyStore, MemoryCacheIpPolicyStore>();
 builder.Services.AddSingleton<IRateLimitCounterStore, MemoryCacheRateLimitCounterStore>();
@@ -135,7 +141,9 @@ builder.Services.AddScoped<IAIConversationService, MockAIConversationService>();
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 builder.Services.Configure<PayPalSettings>(builder.Configuration.GetSection("PayPal"));
 builder.Services.Configure<NpcAISettings>(builder.Configuration.GetSection("NpcAI"));
-builder.Services.AddHttpClient<INpcAIService, NpcAIService>();
+
+// 🟢 --- NPC AI SERVICE (تم تغييره من HttpClient إلى Scoped للـ WebSockets) ---
+builder.Services.AddScoped<INpcAIService, NpcAIService>();
 
 // --- Redis
 builder.Services.AddSingleton<StackExchange.Redis.IConnectionMultiplexer>(sp =>
@@ -147,6 +155,30 @@ builder.Services.AddSingleton<StackExchange.Redis.IConnectionMultiplexer>(sp =>
 });
 
 builder.Services.AddSingleton<INpcSessionStore, RedisNpcSessionStore>();
+
+// 🟢 --- SIGNALR SERVICES ---
+builder.Services.AddSignalR(options =>
+{
+    // How long a connection may be idle before the server probes it.
+    options.ClientTimeoutInterval = TimeSpan.FromSeconds(60);
+    options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+
+    // Max inbound message size from Unity (audio + overhead).
+    options.MaximumReceiveMessageSize = 11 * 1024 * 1024; // 11 MB
+
+    // Enable detailed errors in development for Unity debugging.
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+
+    // Allow streaming return values
+    options.StreamBufferCapacity = 20;
+})
+.AddMessagePackProtocol(options =>
+{
+    // MessagePack is more efficient than JSON for binary audio data.
+    options.SerializerOptions =
+        MessagePack.MessagePackSerializerOptions.Standard
+            .WithCompression(MessagePack.MessagePackCompression.Lz4BlockArray);
+});
 
 // --- Swagger
 builder.Services.AddSwaggerGen(options =>
@@ -218,6 +250,13 @@ app.UseStaticFiles();
 
 app.UseRouting();
 
+// 🟢 --- WebSockets Middleware (يجب أن يكون بعد UseRouting وقبل SignalR) ---
+app.UseWebSockets(new WebSocketOptions
+{
+    // How often SignalR sends WebSocket keep-alive pings to Unity.
+    KeepAliveInterval = TimeSpan.FromSeconds(15)
+});
+
 app.UseIpRateLimiting();
 
 app.UseCors("AllowAll");
@@ -234,6 +273,20 @@ app.UseSwaggerUI(options =>
 });
 
 app.MapControllers();
+
+// 🟢 --- Map SignalR Hub ---
+app.MapHub<NpcHub>("/npcHub", options =>
+{
+    // Allow large binary frames for audio uploads.
+    options.ApplicationMaxBufferSize = 12 * 1024 * 1024; // 12 MB
+    options.TransportMaxBufferSize = 12 * 1024 * 1024;
+
+    // Prefer WebSockets for low latency; fall back to Long Polling for
+    // environments that block WS (corporate firewalls, etc.).
+    options.Transports =
+        Microsoft.AspNetCore.Http.Connections.HttpTransportType.WebSockets |
+        Microsoft.AspNetCore.Http.Connections.HttpTransportType.LongPolling;
+});
 
 // ==================================================
 // SEEDING (✅ تم إضافة الحماية هنا)

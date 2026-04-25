@@ -1,116 +1,274 @@
-﻿// ============================================================
-//  NpcAIService.cs — PastPort.Infrastructure/ExternalServices/AI
-//
-//  GAP 18 FIX: Fail fast if BaseUrl is missing.
-//  FIX 4: Removed double-serialization of 'world' object. Passed 
-//  parameters directly as MultipartFormData fields to prevent 
-//  fragile parsing issues on the AI backend.
-// ============================================================
-using System.Net.Http.Headers;
+﻿// PastPort.Infrastructure/ExternalServices/AI/NpcAIService.cs
+using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using PastPort.Application.Interfaces;
+using PastPort.Application.Models.Npc;
 
 namespace PastPort.Infrastructure.ExternalServices.AI;
 
-public class NpcAISettings
+// ── Configuration ────────────────────────────────────────────────────────────
+
+public sealed class NpcAISettings
 {
-    public string BaseUrl { get; set; } = string.Empty;
+    /// <summary>e.g. "ws://python-api.internal/ws/npc"</summary>
+    public string WebSocketUrl { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Receive buffer in bytes.
+    /// 64 KB covers most meta JSON; audio chunks can be larger — the
+    /// reader reassembles fragmented frames automatically.
+    /// </summary>
+    public int ReceiveBufferBytes { get; init; } = 65_536;
+
+    /// <summary>Max time the whole WebSocket conversation may run.</summary>
+    public int ConversationTimeoutSeconds { get; init; } = 120;
 }
 
-public class NpcAIService : INpcAIService
-{
-    private readonly HttpClient _httpClient;
-    private readonly ILogger<NpcAIService> _logger;
+// ── Private DTOs (send / receive) ─────────────────────────────────────────────
 
-    private static readonly JsonSerializerOptions _jsonOptions = new()
+file sealed class LlmSendPayload
+{
+    [JsonPropertyName("audio")] public int[] Audio { get; init; } = [];
+    [JsonPropertyName("world")] public LlmWorld World { get; init; } = new();
+}
+
+file sealed class LlmWorld
+{
+    [JsonPropertyName("year_range")] public string YearRange { get; init; } = "";
+    [JsonPropertyName("location_old_name")] public string LocationOldName { get; init; } = "";
+    [JsonPropertyName("civilization")] public string Civilization { get; init; } = "";
+    [JsonPropertyName("role_or_name")] public string RoleOrName { get; init; } = "";
+}
+
+file sealed class LlmTextFrame
+{
+    [JsonPropertyName("type")] public string Type { get; init; } = "";
+    [JsonPropertyName("text")] public string? Text { get; init; }
+    [JsonPropertyName("emotion")] public string? Emotion { get; init; }
+    [JsonPropertyName("current_year")] public int CurrentYear { get; init; }
+}
+
+// ── Service ───────────────────────────────────────────────────────────────────
+
+public sealed class NpcAIService : INpcAIService
+{
+    private static readonly JsonSerializerOptions _jsonOpts = new()
     {
-        PropertyNameCaseInsensitive = true,
-        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
+        PropertyNameCaseInsensitive = true
     };
 
+    private readonly NpcAISettings _settings;
+    private readonly ILogger<NpcAIService> _logger;
+
     public NpcAIService(
-        HttpClient httpClient,
         IOptions<NpcAISettings> settings,
         ILogger<NpcAIService> logger)
     {
-        _httpClient = httpClient;
+        _settings = settings.Value;
         _logger = logger;
 
-        // FIX GAP 18: Validate BaseUrl at construction time
-        var baseUrl = settings.Value.BaseUrl;
-        if (string.IsNullOrWhiteSpace(baseUrl))
+        if (string.IsNullOrWhiteSpace(_settings.WebSocketUrl))
             throw new InvalidOperationException(
-                "NpcAI:BaseUrl is not configured. " +
-                "Add it to appsettings.json: \"NpcAI\": { \"BaseUrl\": \"http://your-ai-server\" }");
-
-        _httpClient.BaseAddress = new Uri(baseUrl);
-        _httpClient.Timeout = TimeSpan.FromSeconds(60);
+                "NpcAI:WebSocketUrl is not configured.");
     }
 
-    public async IAsyncEnumerable<NpcStreamChunk> SendAudioAndGetResponseAsync(
+    /// <inheritdoc/>
+    public async IAsyncEnumerable<NpcStreamChunk> StreamConversationAsync(
         byte[] audioBytes,
-        NpcWorldDto world,
-        string sessionId,
+        NpcSessionData sessionData,
+        string roleOrName,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        using var form = new MultipartFormDataContent();
+        // Wrap with an absolute timeout so a silent LLM doesn't hang a hub connection.
+        using var timeoutCts = CancellationTokenSource
+            .CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(
+            TimeSpan.FromSeconds(_settings.ConversationTimeoutSeconds));
 
-        var audioContent = new ByteArrayContent(audioBytes);
-        audioContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-        form.Add(audioContent, "audio", "audio.wav");
-        form.Add(new StringContent(sessionId), "session_id");
+        var token = timeoutCts.Token;
 
-        // ✅ FIX: Instead of JSON serializing the world object, send fields directly.
-        // This avoids the fragile "Double Serialization" issue.
-        form.Add(new StringContent(world.YearRange ?? ""), "year_range");
-        form.Add(new StringContent(world.LocationOldName ?? ""), "location_old_name");
-        form.Add(new StringContent(world.Civilization ?? ""), "civilization");
-        form.Add(new StringContent(world.RoleOrName ?? ""), "role_or_name");
+        using var ws = new ClientWebSocket();
 
-        HttpResponseMessage response;
-
+        // ── 1. Connect ──────────────────────────────────────────────────────
+        bool connected = false;
         try
         {
-            response = await _httpClient.PostAsync("/npc/stream", form, cancellationToken);
+            await ws.ConnectAsync(new Uri(_settings.WebSocketUrl), token);
+            connected = true;
+            _logger.LogInformation(
+                "NPC WS connected to {Url} for role '{Role}'",
+                _settings.WebSocketUrl, roleOrName);
+        }
+        catch (Exception ex) when (!token.IsCancellationRequested)
+        {
+            _logger.LogError(ex, "NPC WebSocket connection failed");
+            yield return new ErrorChunk("Could not connect to the LLM service.");
+            yield break;
+        }
 
-            if (!response.IsSuccessStatusCode)
+        if (!connected) yield break;
+
+        // ── 2. Send payload ─────────────────────────────────────────────────
+        try
+        {
+            var payload = new LlmSendPayload
             {
-                var error = await response.Content.ReadAsStringAsync(cancellationToken);
-                _logger.LogError("NPC API error {Status}: {Error}", response.StatusCode, error);
-                throw new Exception($"NPC API returned {response.StatusCode}: {error}");
-            }
+                // Python expects a JSON array of signed byte values
+                Audio = audioBytes.Select(b => (int)(sbyte)b).ToArray(),
+                World = new LlmWorld
+                {
+                    YearRange = sessionData.YearRange,
+                    LocationOldName = sessionData.LocationOldName,
+                    Civilization = sessionData.Civilization,
+                    RoleOrName = roleOrName
+                }
+            };
+
+            var json = JsonSerializer.Serialize(payload, _jsonOpts);
+            var encoded = Encoding.UTF8.GetBytes(json);
+
+            await ws.SendAsync(
+                encoded.AsMemory(),
+                WebSocketMessageType.Text,
+                endOfMessage: true,
+                cancellationToken: token);
+
+            _logger.LogDebug(
+                "NPC WS sent payload: audio={Bytes} bytes, world={World}",
+                audioBytes.Length, sessionData.Civilization);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (!token.IsCancellationRequested)
         {
-            _logger.LogError(ex, "Failed to call NPC API for session {SessionId}", sessionId);
-            throw;
+            _logger.LogError(ex, "Failed to send NPC WS payload");
+            yield return new ErrorChunk("Failed to send audio to the LLM.");
+            await CloseWebSocketAsync(ws);
+            yield break;
         }
 
-        var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        using var reader = new StreamReader(stream, Encoding.UTF8);
+        // ── 3. Stream responses ─────────────────────────────────────────────
+        // The Python protocol sends frames in this order:
+        //   TextFrame  {"type":"meta", ...}
+        //   BinaryFrame <raw WAV bytes>
+        //   TextFrame  {"type":"done"}
+        //
+        // We must handle WebSocket message fragmentation: a single logical
+        // message may arrive in multiple frames (EndOfMessage == false).
+        // We accumulate into a MemoryStream until EndOfMessage, then process.
 
-        while (!reader.EndOfStream && !cancellationToken.IsCancellationRequested)
+        var buffer = new byte[_settings.ReceiveBufferBytes];
+        using var accumulator = new MemoryStream();
+
+        while (ws.State == WebSocketState.Open && !token.IsCancellationRequested)
         {
-            var line = await reader.ReadLineAsync(cancellationToken);
-            if (string.IsNullOrWhiteSpace(line)) continue;
-
-            NpcStreamChunk? chunk = null;
+            WebSocketReceiveResult result;
             try
             {
-                chunk = JsonSerializer.Deserialize<NpcStreamChunk>(line, _jsonOptions);
+                result = await ws.ReceiveAsync(buffer.AsMemory(), token);
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogInformation("NPC WS receive cancelled (timeout or client disconnect)");
+                break;
+            }
+            catch (WebSocketException ex)
+            {
+                _logger.LogWarning(ex, "NPC WS receive error, closing");
+                yield return new ErrorChunk("LLM connection dropped unexpectedly.");
+                break;
+            }
+
+            if (result.MessageType == WebSocketMessageType.Close)
+            {
+                _logger.LogInformation("NPC WS closed by server");
+                break;
+            }
+
+            // Accumulate fragmented frames
+            accumulator.Write(buffer, 0, result.Count);
+
+            if (!result.EndOfMessage)
+                continue; // wait for rest of message
+
+            // Full message received — process and reset accumulator
+            var fullMessage = accumulator.ToArray();
+            accumulator.SetLength(0);
+
+            NpcStreamChunk? chunk = result.MessageType switch
+            {
+                WebSocketMessageType.Binary => ParseBinaryFrame(fullMessage),
+                WebSocketMessageType.Text => ParseTextFrame(fullMessage),
+                _ => null
+            };
+
+            if (chunk is DoneChunk)
+            {
+                yield return chunk;
+                break; // protocol complete
+            }
+
+            if (chunk is not null)
+                yield return chunk;
+        }
+
+        await CloseWebSocketAsync(ws);
+    }
+
+    // ── Parsers ───────────────────────────────────────────────────────────────
+
+    private static NpcStreamChunk ParseBinaryFrame(byte[] data)
+        => new AudioChunk(data);
+
+    private NpcStreamChunk ParseTextFrame(byte[] data)
+    {
+        try
+        {
+            var frame = JsonSerializer.Deserialize<LlmTextFrame>(data, _jsonOpts);
+
+            if (frame is null)
+                return new ErrorChunk("Received null JSON frame from LLM.");
+
+            return frame.Type switch
+            {
+                "meta" => new MetaChunk(
+                    Text: frame.Text ?? string.Empty,
+                    Emotion: frame.Emotion ?? string.Empty,
+                    CurrentYear: frame.CurrentYear),
+
+                "done" => new DoneChunk(),
+
+                _ => new ErrorChunk($"Unknown LLM frame type: '{frame.Type}'")
+            };
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogWarning(ex, "Failed to parse LLM text frame");
+            return new ErrorChunk("Malformed JSON from LLM.");
+        }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private async Task CloseWebSocketAsync(ClientWebSocket ws)
+    {
+        if (ws.State is WebSocketState.Open or WebSocketState.CloseReceived)
+        {
+            try
+            {
+                using var closeCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+                await ws.CloseAsync(
+                    WebSocketCloseStatus.NormalClosure,
+                    "Conversation complete",
+                    closeCts.Token);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Failed to parse NPC stream chunk: {Line}", line);
-                continue;
+                _logger.LogWarning(ex, "NPC WS close handshake failed (non-critical)");
             }
-
-            if (chunk != null)
-                yield return chunk;
         }
     }
 }

@@ -1,44 +1,29 @@
-﻿namespace PastPort.Application.Interfaces;
+﻿// PastPort.Application/Interfaces/INpcAIService.cs
+using PastPort.Application.Models.Npc;
 
+namespace PastPort.Application.Interfaces;
+
+/// <summary>
+/// Opens a ClientWebSocket to the Python LLM, sends the audio+world payload,
+/// and streams typed chunks back via IAsyncEnumerable.
+///
+/// The hub iterates the enumerable and pushes each chunk to Unity —
+/// this keeps the hub clean and the service fully testable.
+/// </summary>
 public interface INpcAIService
 {
-    IAsyncEnumerable<NpcStreamChunk> SendAudioAndGetResponseAsync(
+    /// <summary>
+    /// Sends audio bytes and world context to the LLM over WebSocket,
+    /// then streams typed response chunks back to the caller.
+    ///
+    /// Completes when the LLM sends {"type":"done"} or the token is cancelled.
+    /// Yields an ErrorChunk (never throws) so the hub can relay the failure
+    /// to Unity without crashing the hub pipeline.
+    /// </summary>
+    IAsyncEnumerable<NpcStreamChunk> StreamConversationAsync(
         byte[] audioBytes,
-        NpcWorldDto world,
-        string sessionId,
-        CancellationToken cancellationToken);
-}
-
-
-public interface INpcSessionStore
-{
-    string CreateSession(NpcSessionData data);
-    NpcSessionData? GetSession(string sessionId);
-    void RemoveSession(string sessionId);
-}
-
-
-public class NpcSessionData
-{
-    public string YearRange { get; set; } = string.Empty;
-    public string LocationOldName { get; set; } = string.Empty;
-    public string Civilization { get; set; } = string.Empty;
-    public DateTime CreatedAt { get; set; }
-}
-
-public class NpcWorldDto
-{
-    public string YearRange { get; set; } = string.Empty;
-    public string LocationOldName { get; set; } = string.Empty;
-    public string Civilization { get; set; } = string.Empty;
-    public string RoleOrName { get; set; } = string.Empty;
-}
-
-public class NpcStreamChunk
-{
-    public string AudioChunk { get; set; } = string.Empty;
-    public string Text { get; set; } = string.Empty;
-    public string Emotion { get; set; } = string.Empty;
-    public float Amplitude { get; set; }
-    public int CurrentYear { get; set; }
+        NpcSessionData sessionData,
+        string roleOrName,
+        CancellationToken cancellationToken = default
+    );
 }
