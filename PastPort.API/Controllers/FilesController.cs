@@ -2,33 +2,24 @@
 using Microsoft.AspNetCore.Mvc;
 using PastPort.Application.DTOs.Response;
 using PastPort.Application.Interfaces;
-using PastPort.API.Extensions;
 
 namespace PastPort.API.Controllers;
 
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
-public class FilesController : BaseApiController
+public class FilesController(
+    IFileStorageService fileStorageService,
+    ILogger<FilesController> logger)
+    : BaseApiController
 {
-    private readonly IFileStorageService _fileStorageService;
-    private readonly ILogger<FilesController> _logger;
-
     // حدود الملفات
-    private readonly string[] _imageExtensions = { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
-    private readonly string[] _modelExtensions = { ".glb", ".gltf", ".obj", ".fbx" };
-    private readonly string[] _audioExtensions = { ".mp3", ".wav", ".ogg" };
+    private readonly string[] _imageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp"];
+    private readonly string[] _modelExtensions = [".glb", ".gltf", ".obj", ".fbx"];
+    private readonly string[] _audioExtensions = [".mp3", ".wav", ".ogg"];
     private const long MaxImageSize = 5 * 1024 * 1024; // 5 MB
     private const long MaxModelSize = 50 * 1024 * 1024; // 50 MB
     private const long MaxAudioSize = 10 * 1024 * 1024; // 10 MB
-
-    public FilesController(
-        IFileStorageService fileStorageService,
-        ILogger<FilesController> logger)
-    {
-        _fileStorageService = fileStorageService;
-        _logger = logger;
-    }
 
     /// <summary>
     /// رفع صورة Avatar
@@ -41,7 +32,7 @@ public class FilesController : BaseApiController
         try
         {
             // التحقق من الملف
-            if (!_fileStorageService.ValidateFile(file, _imageExtensions, MaxImageSize))
+            if (!fileStorageService.ValidateFile(file, _imageExtensions, MaxImageSize))
             {
                 return BadRequest(new
                 {
@@ -51,18 +42,18 @@ public class FilesController : BaseApiController
             }
 
             // رفع الملف
-            var fileUrl = await _fileStorageService.UploadFileAsync(file, "avatars");
+            var fileUrl = await fileStorageService.UploadFileAsync(file, "avatars");
 
             var response = new FileUploadResponseDto
             {
                 FileName = file.FileName,
                 FileUrl = fileUrl,
-                FileType = file.ContentType ?? "image/jpeg",
+                FileType = !string.IsNullOrWhiteSpace(file.ContentType) ? file.ContentType: "image/jpeg",
                 FileSize = file.Length,
                 UploadedAt = DateTime.UtcNow
             };
 
-            _logger.LogInformation("Avatar uploaded successfully: {FileUrl}", fileUrl);
+            logger.LogInformation("Avatar uploaded successfully: {FileUrl}", fileUrl);
 
             return Ok(new
             {
@@ -73,7 +64,7 @@ public class FilesController : BaseApiController
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "خطأ في رفع الصورة");
+            logger.LogError(ex, "خطأ في رفع الصورة");
             return HandleError(ex);
         }
     }
@@ -88,7 +79,7 @@ public class FilesController : BaseApiController
     {
         try
         {
-            if (!_fileStorageService.ValidateFile(file, _modelExtensions, MaxModelSize))
+            if (!fileStorageService.ValidateFile(file, _modelExtensions, MaxModelSize))
             {
                 return BadRequest(new
                 {
@@ -97,18 +88,18 @@ public class FilesController : BaseApiController
                 });
             }
 
-            var fileUrl = await _fileStorageService.UploadFileAsync(file, "models");
+            var fileUrl = await fileStorageService.UploadFileAsync(file, "models");
 
             var response = new FileUploadResponseDto
             {
                 FileName = file.FileName,
                 FileUrl = fileUrl,
-                FileType = file.ContentType ?? "application/octet-stream",
+                FileType = !string.IsNullOrWhiteSpace(file.ContentType) ? file.ContentType: "application/octet-stream",
                 FileSize = file.Length,
                 UploadedAt = DateTime.UtcNow
             };
 
-            _logger.LogInformation("3D model uploaded successfully: {FileUrl}", fileUrl);
+            logger.LogInformation("3D model uploaded successfully: {FileUrl}", fileUrl);
 
             return Ok(new
             {
@@ -119,7 +110,7 @@ public class FilesController : BaseApiController
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "خطأ في رفع الموديل");
+            logger.LogError(ex, "خطأ في رفع الموديل");
             return HandleError(ex);
         }
     }
@@ -132,7 +123,7 @@ public class FilesController : BaseApiController
     {
         try
         {
-            if (!_fileStorageService.ValidateFile(file, _imageExtensions, MaxImageSize))
+            if (!fileStorageService.ValidateFile(file, _imageExtensions, MaxImageSize))
             {
                 return BadRequest(new
                 {
@@ -141,7 +132,7 @@ public class FilesController : BaseApiController
                 });
             }
 
-            var fileUrl = await _fileStorageService.UploadFileAsync(file, "scenes");
+            var fileUrl = await fileStorageService.UploadFileAsync(file, "scenes");
 
             return Ok(new
             {
@@ -152,7 +143,7 @@ public class FilesController : BaseApiController
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "خطأ في رفع صورة Scene");
+            logger.LogError(ex, "خطأ في رفع صورة Scene");
             return HandleError(ex);
         }
     }
@@ -165,7 +156,7 @@ public class FilesController : BaseApiController
     {
         try
         {
-            if (!_fileStorageService.ValidateFile(file, _audioExtensions, MaxAudioSize))
+            if (!fileStorageService.ValidateFile(file, _audioExtensions, MaxAudioSize))
             {
                 return BadRequest(new
                 {
@@ -174,7 +165,7 @@ public class FilesController : BaseApiController
                 });
             }
 
-            var fileUrl = await _fileStorageService.UploadFileAsync(file, "audio");
+            var fileUrl = await fileStorageService.UploadFileAsync(file, "audio");
 
             return Ok(new
             {
@@ -185,7 +176,7 @@ public class FilesController : BaseApiController
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "خطأ في رفع ملف صوتي");
+            logger.LogError(ex, "خطأ في رفع ملف صوتي");
             return HandleError(ex);
         }
     }
@@ -201,18 +192,18 @@ public class FilesController : BaseApiController
             if (string.IsNullOrEmpty(fileUrl))
                 return BadRequest(new { error = "رابط الملف مفقود" });
 
-            var result = await _fileStorageService.DeleteFileAsync(fileUrl);
+            var result = await fileStorageService.DeleteFileAsync(fileUrl);
 
             if (!result)
                 return NotFound(new { error = "الملف غير موجود" });
 
-            _logger.LogInformation("File deleted successfully: {FileUrl}", fileUrl);
+            logger.LogInformation("File deleted successfully: {FileUrl}", fileUrl);
 
             return Ok(new { success = true, message = "تم حذف الملف بنجاح" });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "خطأ في حذف الملف");
+            logger.LogError(ex, "خطأ في حذف الملف");
             return HandleError(ex);
         }
     }
@@ -225,10 +216,10 @@ public class FilesController : BaseApiController
     {
         try
         {
-            if (!_fileStorageService.FileExists(fileUrl))
+            if (!fileStorageService.FileExists(fileUrl))
                 return NotFound(new { error = "الملف غير موجود" });
 
-            var fileSize = _fileStorageService.GetFileSize(fileUrl);
+            var fileSize = fileStorageService.GetFileSize(fileUrl);
 
             return Ok(new
             {
@@ -243,7 +234,7 @@ public class FilesController : BaseApiController
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "خطأ في الحصول على معلومات الملف");
+            logger.LogError(ex, "خطأ في الحصول على معلومات الملف");
             return HandleError(ex);
         }
     }
@@ -253,7 +244,7 @@ public class FilesController : BaseApiController
     /// </summary>
     [HttpPost("upload/multiple")]
     public async Task<IActionResult> UploadMultiple(
-        [FromForm] IFormFileCollection files,
+        [FromForm] IFormFileCollection? files,
         [FromQuery] string folder = "general")
     {
         try
@@ -275,20 +266,20 @@ public class FilesController : BaseApiController
                         continue;
                     }
 
-                    var fileUrl = await _fileStorageService.UploadFileAsync(file, folder);
+                    var fileUrl = await fileStorageService.UploadFileAsync(file, folder);
 
                     uploadedFiles.Add(new FileUploadResponseDto
                     {
                         FileName = file.FileName,
                         FileUrl = fileUrl,
-                        FileType = file.ContentType ?? "application/octet-stream",
+                        FileType = !string.IsNullOrWhiteSpace(file.ContentType) ? file.ContentType: "application/octet-stream",
                         FileSize = file.Length,
                         UploadedAt = DateTime.UtcNow
                     });
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "خطأ في رفع الملف: {FileName}", file.FileName);
+                    logger.LogError(ex, "خطأ في رفع الملف: {FileName}", file.FileName);
                     failedFiles.Add($"{file.FileName}: {ex.Message}");
                 }
             }
@@ -308,7 +299,7 @@ public class FilesController : BaseApiController
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "خطأ في رفع ملفات متعددة");
+            logger.LogError(ex, "خطأ في رفع ملفات متعددة");
             return HandleError(ex);
         }
 

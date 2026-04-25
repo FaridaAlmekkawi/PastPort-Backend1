@@ -2,15 +2,8 @@ using Serilog;
 
 namespace PastPort.API.Middlewares;
 
-public class RequestLoggingMiddleware
+public class RequestLoggingMiddleware(RequestDelegate next)
 {
-    private readonly RequestDelegate _next;
-
-    public RequestLoggingMiddleware(RequestDelegate next)
-    {
-        _next = next;
-    }
-
     public async Task InvokeAsync(HttpContext context)
     {
         var startTime = DateTime.UtcNow;
@@ -20,7 +13,7 @@ public class RequestLoggingMiddleware
             context.Request.Path,
             startTime);
 
-        await _next(context);
+        await next(context);
 
         var duration = DateTime.UtcNow - startTime;
 

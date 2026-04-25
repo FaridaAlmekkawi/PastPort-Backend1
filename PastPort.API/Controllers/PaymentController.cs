@@ -1,28 +1,19 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PastPort.Application.DTOs;
-using PastPort.Application.Interfaces;
 using System.Security.Claims;
 
 namespace PastPort.API.Controllers
 {
     [ApiController]
     [Route("api/payments")]
-    public class PaymentController : ControllerBase
+    public class PaymentController(
+        IPaymentService paymentService,
+        ILogger<PaymentController> logger)
+        : ControllerBase
     {
-        private readonly IPaymentService _paymentService;
-        private readonly ILogger<PaymentController> _logger;
-
-        public PaymentController(
-            IPaymentService paymentService,
-            ILogger<PaymentController> logger)
-        {
-            _paymentService = paymentService;
-            _logger = logger;
-        }
-
         private string UserId => User.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? throw new UnauthorizedAccessException("User identity not found.");
+                                 ?? throw new UnauthorizedAccessException("User identity not found.");
 
         // ── GET /api/payments/transactions ───────────────────────
         /// <summary>Returns the authenticated user's full payment history.</summary>
@@ -31,7 +22,7 @@ namespace PastPort.API.Controllers
         [ProducesResponseType(typeof(IEnumerable<TransactionDto>), 200)]
         public async Task<IActionResult> GetTransactions(CancellationToken ct)
         {
-            var txs = await _paymentService.GetTransactionHistoryAsync(UserId, ct);
+            var txs = await paymentService.GetTransactionHistoryAsync(UserId, ct);
             return Ok(txs);
         }
 
@@ -42,7 +33,7 @@ namespace PastPort.API.Controllers
         [ProducesResponseType(typeof(IEnumerable<InvoiceDto>), 200)]
         public async Task<IActionResult> GetInvoices(CancellationToken ct)
         {
-            var invoices = await _paymentService.GetInvoicesAsync(UserId, ct);
+            var invoices = await paymentService.GetInvoicesAsync(UserId, ct);
             return Ok(invoices);
         }
 
@@ -60,7 +51,7 @@ namespace PastPort.API.Controllers
         ///   Events to listen for:
         ///     checkout.session.completed
         ///     payment_intent.payment_failed
-        ///     charge.refunded
+        ///     charge. refunded
         ///   Endpoint URL: https://your-domain.com/api/payments/webhooks/stripe
         /// </summary>
         [HttpPost("webhooks/stripe")]
@@ -77,19 +68,19 @@ namespace PastPort.API.Controllers
 
             try
             {
-                var webhookEvent = await _paymentService.ParseAndVerifyWebhookAsync(rawBody, sigHeader, ct);
-                await _paymentService.ProcessWebhookAsync(webhookEvent, ct);
+                var webhookEvent = await paymentService.ParseAndVerifyWebhookAsync(rawBody, sigHeader, ct);
+                await paymentService.ProcessWebhookAsync(webhookEvent, ct);
                 return Ok();
             }
             catch (Stripe.StripeException ex)
             {
-                _logger.LogWarning("Stripe signature verification failed: {Message}", ex.Message);
+                logger.LogWarning("Stripe signature verification failed: {Message}", ex.Message);
                 return BadRequest(new { error = "Invalid signature" });
             }
             catch (Exception ex)
             {
                 // Return 500 so Stripe retries this webhook
-                _logger.LogError(ex, "Stripe webhook processing error");
+                logger.LogError(ex, "Stripe webhook processing error");
                 return StatusCode(500);
             }
         }
@@ -119,18 +110,18 @@ namespace PastPort.API.Controllers
 
             try
             {
-                var webhookEvent = await _paymentService.ParseAndVerifyWebhookAsync(rawBody, hmac, ct);
-                await _paymentService.ProcessWebhookAsync(webhookEvent, ct);
+                var webhookEvent = await paymentService.ParseAndVerifyWebhookAsync(rawBody, hmac, ct);
+                await paymentService.ProcessWebhookAsync(webhookEvent, ct);
                 return Ok();
             }
             catch (InvalidOperationException ex) when (ex.Message.Contains("HMAC"))
             {
-                _logger.LogWarning("Paymob HMAC verification failed: {Message}", ex.Message);
+                logger.LogWarning("Paymob HMAC verification failed: {Message}", ex.Message);
                 return BadRequest(new { error = "Invalid HMAC" });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Paymob webhook processing error");
+                logger.LogError(ex, "Paymob webhook processing error");
                 return StatusCode(500);
             }
         }

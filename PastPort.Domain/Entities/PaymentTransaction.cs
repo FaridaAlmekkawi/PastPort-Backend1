@@ -1,43 +1,37 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Transactions;
 using PastPort.Domain.Enums;
 
 namespace PastPort.Domain.Entities
 {
-    public class PaymentTransaction
+    public sealed class PaymentTransaction
     {
         [Key]
-        public Guid Id { get; set; } = Guid.NewGuid();
+        public Guid Id { get; init; } = Guid.NewGuid();
 
-        public Guid UserSubscriptionId { get; set; }
-        public UserSubscription UserSubscription { get; set; } = default!;
+        public Guid UserSubscriptionId { get; init; }
+        public UserSubscription UserSubscription { get; init; } = null!;
 
         [Required]
-        public string UserId { get; set; } = default!;
+        public string UserId { get; init; } = null!;
 
-        /// <summary>Amount in smallest currency unit (e.g., 999 = $9.99).</summary>
+        /// <summary>Amount in the smallest currency unit (e.g., 999 = $9.99).</summary>
         [Column(TypeName = "decimal(18,2)")]
-        public decimal Amount { get; set; }
+        public decimal Amount { get; init; }
 
         [MaxLength(3)]
-        public string Currency { get; set; } = "USD";
+        public string Currency { get; init; } = "USD";
 
-        public PastPort.Domain.Enums.TransactionStatus Status { get; set; } = PastPort.Domain.Enums.TransactionStatus.Pending;
-        public virtual  ApplicationUser? User { get; set; }
-        public PaymentGateway Gateway { get; set; }
+        public TransactionStatus Status { get; set; } = TransactionStatus.Pending;
+        public ApplicationUser? User { get; init; }
+        public PaymentGateway Gateway { get; init; }
 
         /// <summary>Gateway-assigned charge/payment-intent ID.</summary>
         [MaxLength(300)]
         public string? GatewayTransactionId { get; set; }
 
         /// <summary>Raw gateway response payload (for debugging & audit).</summary>
-        public string? GatewayResponse { get; set; }
+        public string? GatewayResponse { get; init; }
 
         /// <summary>Redirect URL the gateway sends the user to on success.</summary>
         [MaxLength(1000)]
@@ -51,12 +45,12 @@ namespace PastPort.Domain.Entities
         /// Idempotency key sent to the gateway to prevent duplicate charges.
         /// </summary>
         [MaxLength(200)]
-        public string IdempotencyKey { get; set; } = Guid.NewGuid().ToString();
+        public string IdempotencyKey { get; init; } = Guid.NewGuid().ToString();
 
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
         public DateTime? ProcessedAt { get; set; }
 
         // ── Navigation ──────────────────────────────────────────
-        public Invoice? Invoice { get; set; }
+        public Invoice? Invoice { get; init; }
     }
 }

@@ -20,25 +20,13 @@ namespace PastPort.API.Controllers;
 
 [Route("api/[controller]")]
 [ApiController]
-public class ExternalAuthController : ControllerBase
+public class ExternalAuthController(
+    SignInManager<ApplicationUser> signInManager,
+    UserManager<ApplicationUser> userManager,
+    IJwtTokenService jwtTokenService,
+    ILogger<ExternalAuthController> logger)
+    : ControllerBase
 {
-    private readonly SignInManager<ApplicationUser> _signInManager;
-    private readonly UserManager<ApplicationUser> _userManager;
-    private readonly IJwtTokenService _jwtTokenService;
-    private readonly ILogger<ExternalAuthController> _logger;
-
-    public ExternalAuthController(
-        SignInManager<ApplicationUser> signInManager,
-        UserManager<ApplicationUser> userManager,
-        IJwtTokenService jwtTokenService,
-        ILogger<ExternalAuthController> logger)
-    {
-        _signInManager = signInManager;
-        _userManager = userManager;
-        _jwtTokenService = jwtTokenService;
-        _logger = logger;
-    }
-
     /// <summary>
     /// Initiate Google Login — يعمل redirect لـ Google OAuth
     /// </summary>
@@ -46,7 +34,7 @@ public class ExternalAuthController : ControllerBase
     public IActionResult GoogleLogin([FromQuery] string? returnUrl = null)
     {
         var redirectUrl = Url.Action(nameof(GoogleCallback), "ExternalAuth", new { returnUrl });
-        var properties = _signInManager.ConfigureExternalAuthenticationProperties(
+        var properties = signInManager.ConfigureExternalAuthenticationProperties(
             GoogleDefaults.AuthenticationScheme, redirectUrl);
         return Challenge(properties, GoogleDefaults.AuthenticationScheme);
     }
@@ -60,14 +48,14 @@ public class ExternalAuthController : ControllerBase
         // ✅ كل provider بيستدعي GetExternalLoginInfoAsync بنفسه
         // عشان الـ info بيتحدد من الـ cookie اللي ASP.NET Core بيخزنه
         // بناءً على الـ provider اللي عمل الـ challenge
-        var info = await _signInManager.GetExternalLoginInfoAsync();
+        var info = await signInManager.GetExternalLoginInfoAsync();
         if (info == null)
         {
-            _logger.LogWarning("Failed to load Google external login info");
+            logger.LogWarning("Failed to load Google external login info");
             return BadRequest(new { error = "Error loading Google login information" });
         }
 
-        var result = await _signInManager.ExternalLoginSignInAsync(
+        var result = await signInManager.ExternalLoginSignInAsync(
             info.LoginProvider,
             info.ProviderKey,
             isPersistent: false,
@@ -84,7 +72,7 @@ public class ExternalAuthController : ControllerBase
     public IActionResult FacebookLogin([FromQuery] string? returnUrl = null)
     {
         var redirectUrl = Url.Action(nameof(FacebookCallback), "ExternalAuth", new { returnUrl });
-        var properties = _signInManager.ConfigureExternalAuthenticationProperties(
+        var properties = signInManager.ConfigureExternalAuthenticationProperties(
             FacebookDefaults.AuthenticationScheme, redirectUrl);
         return Challenge(properties, FacebookDefaults.AuthenticationScheme);
     }
@@ -100,14 +88,14 @@ public class ExternalAuthController : ControllerBase
         // ده كان بيعمل GetExternalLoginInfoAsync داخل Google context
         // مش Facebook context — ممكن يرجع null أو provider غلط.
         // دلوقتي كل callback مستقل ويحمّل الـ info بتاعه هو.
-        var info = await _signInManager.GetExternalLoginInfoAsync();
+        var info = await signInManager.GetExternalLoginInfoAsync();
         if (info == null)
         {
-            _logger.LogWarning("Failed to load Facebook external login info");
+            logger.LogWarning("Failed to load Facebook external login info");
             return BadRequest(new { error = "Error loading Facebook login information" });
         }
 
-        var result = await _signInManager.ExternalLoginSignInAsync(
+        var result = await signInManager.ExternalLoginSignInAsync(
             info.LoginProvider,
             info.ProviderKey,
             isPersistent: false,
@@ -131,19 +119,19 @@ public class ExternalAuthController : ControllerBase
         // الحالة 1: المستخدم موجود بالفعل → generate tokens مباشرة
         if (result.Succeeded)
         {
-            var existingUser = await _userManager.FindByLoginAsync(
+            var existingUser = await userManager.FindByLoginAsync(
                 info.LoginProvider,
                 info.ProviderKey);
 
             if (existingUser != null)
             {
                 existingUser.LastLoginAt = DateTime.UtcNow;
-                await _userManager.UpdateAsync(existingUser);
+                await userManager.UpdateAsync(existingUser);
 
-                var token = await _jwtTokenService.GenerateAccessTokenAsync(existingUser);
-                var refreshToken = await _jwtTokenService.CreateRefreshTokenAsync(existingUser);
+                var token = await jwtTokenService.GenerateAccessTokenAsync(existingUser);
+                var refreshToken = await jwtTokenService.CreateRefreshTokenAsync(existingUser);
 
-                _logger.LogInformation(
+                logger.LogInformation(
                     "Existing user logged in via {Provider}: {Email}",
                     info.LoginProvider,
                     existingUser.Email);
@@ -171,19 +159,19 @@ public class ExternalAuthController : ControllerBase
 
         if (string.IsNullOrEmpty(email))
         {
-            _logger.LogWarning("External provider {Provider} did not return an email", info.LoginProvider);
+            logger.LogWarning("External provider {Provider} did not return an email", info.LoginProvider);
             return BadRequest(new { error = "Email not provided by external provider" });
         }
 
         // تحقق لو في user بنفس الـ email بس مش مربوط بالـ provider ده
-        var userByEmail = await _userManager.FindByEmailAsync(email);
+        var userByEmail = await userManager.FindByEmailAsync(email);
         if (userByEmail != null)
         {
             // ربط الـ provider بالحساب الموجود
-            await _userManager.AddLoginAsync(userByEmail, info);
+            await userManager.AddLoginAsync(userByEmail, info);
 
-            var token = await _jwtTokenService.GenerateAccessTokenAsync(userByEmail);
-            var refreshToken = await _jwtTokenService.CreateRefreshTokenAsync(userByEmail);
+            var token = await jwtTokenService.GenerateAccessTokenAsync(userByEmail);
+            var refreshToken = await jwtTokenService.CreateRefreshTokenAsync(userByEmail);
 
             return Ok(new
             {
@@ -213,10 +201,10 @@ public class ExternalAuthController : ControllerBase
             CreatedAt = DateTime.UtcNow
         };
 
-        var createResult = await _userManager.CreateAsync(newUser);
+        var createResult = await userManager.CreateAsync(newUser);
         if (!createResult.Succeeded)
         {
-            _logger.LogError(
+            logger.LogError(
                 "Failed to create user from {Provider}: {Errors}",
                 info.LoginProvider,
                 string.Join(", ", createResult.Errors.Select(e => e.Description)));
@@ -228,17 +216,17 @@ public class ExternalAuthController : ControllerBase
             });
         }
 
-        await _userManager.AddLoginAsync(newUser, info);
-        await _userManager.AddToRoleAsync(newUser, "Individual");
-        await _signInManager.SignInAsync(newUser, isPersistent: false);
+        await userManager.AddLoginAsync(newUser, info);
+        await userManager.AddToRoleAsync(newUser, "Individual");
+        await signInManager.SignInAsync(newUser, isPersistent: false);
 
-        _logger.LogInformation(
+        logger.LogInformation(
             "New user created via {Provider}: {Email}",
             info.LoginProvider,
             email);
 
-        var newToken = await _jwtTokenService.GenerateAccessTokenAsync(newUser);
-        var newRefreshToken = await _jwtTokenService.CreateRefreshTokenAsync(newUser);
+        var newToken = await jwtTokenService.GenerateAccessTokenAsync(newUser);
+        var newRefreshToken = await jwtTokenService.CreateRefreshTokenAsync(newUser);
 
         return Ok(new
         {

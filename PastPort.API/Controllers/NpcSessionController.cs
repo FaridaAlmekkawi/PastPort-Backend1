@@ -17,30 +17,21 @@ public sealed record StartSessionRequest(
 
 public sealed record StartSessionResponse(
     string SessionId,
-    DateTime ExpiresAt
-);
+    DateTime ExpiresAt);
 
 // ── Controller ────────────────────────────────────────────────────────────────
 
 [Authorize]
 [ApiController]
 [Route("api/npc")]
-public sealed class NpcSessionController : ControllerBase
+public sealed class NpcSessionController(
+    IMemoryCache cache,
+    ILogger<NpcSessionController> logger)
+    : ControllerBase
 {
     // Sessions survive for this long in cache.
     // Must be longer than the longest expected VR scene.
     private static readonly TimeSpan SessionTtl = TimeSpan.FromHours(2);
-
-    private readonly IMemoryCache _cache;
-    private readonly ILogger<NpcSessionController> _logger;
-
-    public NpcSessionController(
-        IMemoryCache cache,
-        ILogger<NpcSessionController> logger)
-    {
-        _cache = cache;
-        _logger = logger;
-    }
 
     /// <summary>
     /// Flutter calls this once per scene to establish a session.
@@ -66,12 +57,12 @@ public sealed class NpcSessionController : ControllerBase
             .SetAbsoluteExpiration(SessionTtl)
             // Eviction callback so we can log and clean up if needed
             .RegisterPostEvictionCallback((key, _, reason, _) =>
-                _logger.LogInformation(
+                logger.LogInformation(
                     "NPC session {Key} evicted. Reason: {Reason}", key, reason));
 
-        _cache.Set(BuildCacheKey(sessionId), sessionData, cacheOptions);
+        cache.Set(BuildCacheKey(sessionId), sessionData, cacheOptions);
 
-        _logger.LogInformation(
+        logger.LogInformation(
             "NPC session {SessionId} created for civilization '{Civ}', expires {Exp:O}",
             sessionId, request.Civilization, expiresAt);
 
@@ -89,7 +80,7 @@ public sealed class NpcSessionController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public IActionResult GetSession(string sessionId)
     {
-        if (_cache.TryGetValue(BuildCacheKey(sessionId), out NpcSessionData? data)
+        if (cache.TryGetValue(BuildCacheKey(sessionId), out NpcSessionData? data)
             && data is not null)
         {
             return Ok(new
