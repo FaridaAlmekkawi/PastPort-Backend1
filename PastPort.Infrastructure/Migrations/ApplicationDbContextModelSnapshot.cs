@@ -378,7 +378,9 @@ namespace PastPort.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("CharacterId");
+
+                    b.HasIndex("UserId", "CharacterId");
 
                     b.ToTable("Conversations");
                 });
@@ -530,6 +532,7 @@ namespace PastPort.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.Property<decimal>("SubTotal")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<decimal>("TaxAmount")
@@ -693,9 +696,12 @@ namespace PastPort.Infrastructure.Migrations
 
                     b.Property<string>("UserId")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<Guid>("UserSubscriptionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("UserSubscriptionId1")
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
@@ -705,7 +711,11 @@ namespace PastPort.Infrastructure.Migrations
                     b.HasIndex("IdempotencyKey")
                         .IsUnique();
 
+                    b.HasIndex("UserId");
+
                     b.HasIndex("UserSubscriptionId");
+
+                    b.HasIndex("UserSubscriptionId1");
 
                     b.ToTable("PaymentTransactions");
                 });
@@ -814,13 +824,16 @@ namespace PastPort.Infrastructure.Migrations
 
                     b.Property<string>("Token")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<string>("UserId")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("Token")
+                        .IsUnique();
 
                     b.HasIndex("UserId");
 
@@ -1110,11 +1123,19 @@ namespace PastPort.Infrastructure.Migrations
 
             modelBuilder.Entity("PastPort.Domain.Entities.Conversation", b =>
                 {
+                    b.HasOne("PastPort.Domain.Entities.Character", "Character")
+                        .WithMany()
+                        .HasForeignKey("CharacterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("PastPort.Domain.Entities.ApplicationUser", "User")
                         .WithMany("Conversations")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Character");
 
                     b.Navigation("User");
                 });
@@ -1175,11 +1196,23 @@ namespace PastPort.Infrastructure.Migrations
 
             modelBuilder.Entity("PastPort.Domain.Entities.PaymentTransaction", b =>
                 {
-                    b.HasOne("PastPort.Domain.Entities.UserSubscription", "UserSubscription")
-                        .WithMany("Transactions")
-                        .HasForeignKey("UserSubscriptionId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                    b.HasOne("PastPort.Domain.Entities.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("PastPort.Domain.Entities.UserSubscription", "UserSubscription")
+                        .WithMany()
+                        .HasForeignKey("UserSubscriptionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("PastPort.Domain.Entities.UserSubscription", null)
+                        .WithMany("Transactions")
+                        .HasForeignKey("UserSubscriptionId1");
+
+                    b.Navigation("User");
 
                     b.Navigation("UserSubscription");
                 });
@@ -1255,7 +1288,15 @@ namespace PastPort.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("PastPort.Domain.Entities.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.Navigation("Plan");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("PastPort.Domain.Entities.ApplicationUser", b =>

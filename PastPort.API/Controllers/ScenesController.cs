@@ -8,17 +8,9 @@ namespace PastPort.API.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
-public class ScenesController : BaseApiController
+public class ScenesController(ISceneService sceneService, ILogger<ScenesController> logger)
+    : BaseApiController
 {
-    private readonly ISceneService _sceneService;
-    private readonly ILogger<ScenesController> _logger;
-
-    public ScenesController(ISceneService sceneService, ILogger<ScenesController> logger)
-    {
-        _sceneService = sceneService;
-        _logger = logger;
-    }
-
     /// <summary>
     /// Get all historical scenes
     /// </summary>
@@ -28,12 +20,12 @@ public class ScenesController : BaseApiController
     {
         try
         {
-            var scenes = await _sceneService.GetAllScenesAsync();
+            var scenes = await sceneService.GetAllScenesAsync();
             return Ok(new { data = scenes, message = "Scenes retrieved successfully" });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to retrieve scenes");
+            logger.LogError(ex, "Failed to retrieve scenes");
             return HandleError(ex);
         }
     }
@@ -48,12 +40,12 @@ public class ScenesController : BaseApiController
     {
         try
         {
-            var scene = await _sceneService.GetSceneByIdAsync(id);
+            var scene = await sceneService.GetSceneByIdAsync(id);
             return HandleResult(scene);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to retrieve scene {SceneId}", id);
+            logger.LogError(ex, "Failed to retrieve scene {SceneId}", id);
             return HandleError(ex);
         }
     }
@@ -67,12 +59,12 @@ public class ScenesController : BaseApiController
     {
         try
         {
-            var scenes = await _sceneService.GetScenesByEraAsync(era);
+            var scenes = await sceneService.GetScenesByEraAsync(era);
             return Ok(new { data = scenes, message = $"Scenes from {era} retrieved successfully" });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to retrieve scenes for era {Era}", era);
+            logger.LogError(ex, "Failed to retrieve scenes for era {Era}", era);
             return HandleError(ex);
         }
     }
@@ -86,12 +78,12 @@ public class ScenesController : BaseApiController
     {
         try
         {
-            var scenes = await _sceneService.SearchScenesAsync(searchTerm);
+            var scenes = await sceneService.SearchScenesAsync(searchTerm);
             return Ok(new { data = scenes, message = "Search completed successfully" });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to search scenes with term {SearchTerm}", searchTerm);
+            logger.LogError(ex, "Failed to search scenes with term {SearchTerm}", searchTerm);
             return HandleError(ex);
         }
     }
@@ -106,14 +98,14 @@ public class ScenesController : BaseApiController
     {
         try
         {
-            var scene = await _sceneService.CreateSceneAsync(request);
-            _logger.LogInformation("Scene created: {SceneId}", scene.Id);
+            var scene = await sceneService.CreateSceneAsync(request);
+            logger.LogInformation("Scene created: {SceneId}", scene.Id);
             return CreatedAtAction(nameof(GetSceneById), new { id = scene.Id },
                 new { data = scene, message = "Scene created successfully" });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to create scene");
+            logger.LogError(ex, "Failed to create scene");
             return HandleError(ex);
         }
     }
@@ -128,13 +120,13 @@ public class ScenesController : BaseApiController
     {
         try
         {
-            var scene = await _sceneService.UpdateSceneAsync(id, request);
-            _logger.LogInformation("Scene updated: {SceneId}", id);
+            var scene = await sceneService.UpdateSceneAsync(id, request);
+            logger.LogInformation("Scene updated: {SceneId}", id);
             return Ok(new { data = scene, message = "Scene updated successfully" });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to update scene {SceneId}", id);
+            logger.LogError(ex, "Failed to update scene {SceneId}", id);
             return HandleError(ex);
         }
     }
@@ -149,13 +141,13 @@ public class ScenesController : BaseApiController
     {
         try
         {
-            await _sceneService.DeleteSceneAsync(id);
-            _logger.LogInformation("Scene deleted: {SceneId}", id);
+            await sceneService.DeleteSceneAsync(id);
+            logger.LogInformation("Scene deleted: {SceneId}", id);
             return Ok(new { message = "Scene deleted successfully" });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to delete scene {SceneId}", id);
+            logger.LogError(ex, "Failed to delete scene {SceneId}", id);
             return HandleError(ex);
         }
     }

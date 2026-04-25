@@ -13,8 +13,6 @@ public class SwaggerFileOperationFilter : IOperationFilter
 {
     public void Apply(OpenApiOperation operation, OperationFilterContext context)
     {
-        var methodInfo = context.MethodInfo;
-
         // البحث عن [FromForm] parameters
         var formFileParameters = context.MethodInfo.GetParameters()
             .Where(p => p.GetCustomAttribute<FromFormAttribute>() != null)
@@ -53,7 +51,7 @@ public class SwaggerFileOperationFilter : IOperationFilter
         operation.Parameters?.Clear();
     }
 
-    private OpenApiSchema CreateFormDataSchema(OperationFilterContext context, List<ParameterInfo> formFileParameters)
+    private OpenApiSchema CreateFormDataSchema(OperationFilterContext _, List<ParameterInfo> formFileParameters)
     {
         var schema = new OpenApiSchema
         {

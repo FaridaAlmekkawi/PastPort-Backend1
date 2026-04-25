@@ -9,19 +9,11 @@ namespace PastPort.API.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
-public class ConversationsController : BaseApiController
+public class ConversationsController(
+    IConversationService conversationService,
+    ILogger<ConversationsController> logger)
+    : BaseApiController
 {
-    private readonly IConversationService _conversationService;
-    private readonly ILogger<ConversationsController> _logger;
-
-    public ConversationsController(
-        IConversationService conversationService,
-        ILogger<ConversationsController> logger)
-    {
-        _conversationService = conversationService;
-        _logger = logger;
-    }
-
     /// <summary>
     /// Create a conversation with a character
     /// </summary>
@@ -36,8 +28,8 @@ public class ConversationsController : BaseApiController
             if (string.IsNullOrEmpty(userId))
                 return Unauthorized();
 
-            var conversation = await _conversationService.CreateConversationAsync(userId, request);
-            _logger.LogInformation("Conversation created for user {UserId} with character {CharacterId}",
+            var conversation = await conversationService.CreateConversationAsync(userId, request);
+            logger.LogInformation("Conversation created for user {UserId} with character {CharacterId}",
                 userId, request.CharacterId);
 
             return CreatedAtAction(nameof(GetConversationHistory),
@@ -46,7 +38,7 @@ public class ConversationsController : BaseApiController
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to create conversation");
+            logger.LogError(ex, "Failed to create conversation");
             return HandleError(ex);
         }
     }
@@ -64,12 +56,12 @@ public class ConversationsController : BaseApiController
             if (string.IsNullOrEmpty(userId))
                 return Unauthorized();
 
-            var conversations = await _conversationService.GetUserConversationsAsync(userId);
+            var conversations = await conversationService.GetUserConversationsAsync(userId);
             return Ok(new { data = conversations, message = "Conversations retrieved successfully" });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to retrieve user conversations");
+            logger.LogError(ex, "Failed to retrieve user conversations");
             return HandleError(ex);
         }
     }
@@ -88,14 +80,14 @@ public class ConversationsController : BaseApiController
             if (string.IsNullOrEmpty(userId))
                 return Unauthorized();
 
-            var history = await _conversationService
+            var history = await conversationService
                 .GetConversationHistoryWithCharacterAsync(userId, characterId);
 
             return Ok(new { data = history, message = "Conversation history retrieved successfully" });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to retrieve conversation history for character {CharacterId}",
+            logger.LogError(ex, "Failed to retrieve conversation history for character {CharacterId}",
                 characterId);
             return HandleError(ex);
         }

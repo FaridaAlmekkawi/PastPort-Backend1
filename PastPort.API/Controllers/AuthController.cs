@@ -19,20 +19,15 @@ namespace PastPort.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class AuthController : ControllerBase
+public class AuthController(IAuthService authService) : ControllerBase
 {
-    private readonly IAuthService _authService;
-
-    public AuthController(IAuthService authService)
-        => _authService = authService;
-
     // ── Registration & Login ─────────────────────────────────
 
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterRequestDto request)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
-        var result = await _authService.RegisterAsync(request);
+        var result = await authService.RegisterAsync(request);
         if (!result.Success) return BadRequest(result);
         return Ok(result);
     }
@@ -41,7 +36,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Login([FromBody] LoginRequestDto request)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
-        var result = await _authService.LoginAsync(request);
+        var result = await authService.LoginAsync(request);
         if (!result.Success) return BadRequest(result);
         return Ok(result);
     }
@@ -49,7 +44,7 @@ public class AuthController : ControllerBase
     [HttpPost("refresh-token")]
     public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequestDto request)
     {
-        var result = await _authService.RefreshTokenAsync(request.RefreshToken);
+        var result = await authService.RefreshTokenAsync(request.RefreshToken);
         if (!result.Success) return BadRequest(result);
         return Ok(result);
     }
@@ -60,7 +55,7 @@ public class AuthController : ControllerBase
     {
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
-        var result = await _authService.LogoutAsync(userId);
+        var result = await authService.LogoutAsync(userId);
         if (!result) return BadRequest(new { message = "Logout failed" });
         return Ok(new { message = "Logged out successfully" });
     }
@@ -73,7 +68,7 @@ public class AuthController : ControllerBase
     {
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (string.IsNullOrEmpty(userId)) return Unauthorized();
-        var result = await _authService.SendVerificationCodeAsync(userId);
+        var result = await authService.SendVerificationCodeAsync(userId);
         if (!result.Success) return BadRequest(result);
         return Ok(result);
     }
@@ -82,7 +77,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> VerifyEmail([FromBody] VerifyEmailRequestDto request)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
-        var result = await _authService.VerifyEmailAsync(request);
+        var result = await authService.VerifyEmailAsync(request);
         if (!result.Success) return BadRequest(result);
         return Ok(result);
     }
@@ -91,7 +86,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> ResendVerificationCode([FromBody] ResendVerificationCodeRequestDto request)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
-        var result = await _authService.ResendVerificationCodeAsync(request);
+        var result = await authService.ResendVerificationCodeAsync(request);
         if (!result.Success) return BadRequest(result);
         return Ok(result);
     }
@@ -102,7 +97,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequestDto request)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
-        var result = await _authService.ForgotPasswordAsync(request);
+        var result = await authService.ForgotPasswordAsync(request);
         return Ok(result); // Always 200 to prevent email enumeration
     }
 
@@ -110,7 +105,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> VerifyResetCode([FromBody] VerifyResetCodeRequestDto request)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
-        var result = await _authService.VerifyResetCodeAsync(request);
+        var result = await authService.VerifyResetCodeAsync(request);
         if (!result.Success) return BadRequest(result);
         return Ok(result);
     }
@@ -119,7 +114,7 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequestDto request)
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
-        var result = await _authService.ResetPasswordAsync(request);
+        var result = await authService.ResetPasswordAsync(request);
         if (!result.Success) return BadRequest(result);
         return Ok(result);
     }
@@ -171,7 +166,7 @@ public class AuthController : ControllerBase
         if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(providerId))
             return BadRequest(new { message = "Could not retrieve user information from provider" });
 
-        var result = await _authService.ExternalLoginCallbackAsync(new ExternalLoginCallbackDto
+        var result = await authService.ExternalLoginCallbackAsync(new ExternalLoginCallbackDto
         {
             Email = email,
             FirstName = firstName,

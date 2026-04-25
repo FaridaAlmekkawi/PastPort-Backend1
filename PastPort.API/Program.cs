@@ -19,7 +19,6 @@ using AspNetCoreRateLimit;
 using Serilog;
 using PastPort.Application.Services;
 using PastPort.API.Hubs;
-using PastPort.Application.Models.Npc;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -208,7 +207,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.SetIsOriginAllowed(origin => true)
+        policy.SetIsOriginAllowed(_ => true)
               .AllowAnyMethod()
               .AllowAnyHeader()
               .AllowCredentials();
@@ -286,7 +285,7 @@ using (var scope = app.Services.CreateScope())
     try
     {
         var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-        string[] roles = { "Admin", "School", "Museum", "Enterprise", "Individual" };
+        string[] roles = [ "Admin", "School", "Museum", "Enterprise", "Individual" ];
 
         foreach (var role in roles)
         {

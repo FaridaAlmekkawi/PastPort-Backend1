@@ -5,13 +5,8 @@ using System.Security.Claims;
 namespace PastPort.API.Filters
 {
     [AttributeUsage(AttributeTargets.Method | AttributeTargets.Class)]
-    public class RequiresFeatureAttribute : Attribute, IAsyncActionFilter
+    public class RequiresFeatureAttribute(string featureSlug) : Attribute, IAsyncActionFilter
     {
-        private readonly string _featureSlug;
-
-        public RequiresFeatureAttribute(string featureSlug)
-            => _featureSlug = featureSlug;
-
         public async Task OnActionExecutionAsync(
             ActionExecutingContext context, ActionExecutionDelegate next)
         {
@@ -26,14 +21,14 @@ namespace PastPort.API.Filters
             var subscriptionService = context.HttpContext.RequestServices
                 .GetRequiredService<ISubscriptionService>();
 
-            var hasAccess = await subscriptionService.HasFeatureAccessAsync(userId, _featureSlug);
+            var hasAccess = await subscriptionService.HasFeatureAccessAsync(userId, featureSlug);
 
             if (!hasAccess)
             {
                 context.Result = new ObjectResult(new ProblemDetails
                 {
                     Title = "Subscription required",
-                    Detail = $"Your current plan does not include the '{_featureSlug}' feature. Please upgrade your subscription.",
+                    Detail = $"Your current plan does not include the '{featureSlug}' feature. Please upgrade your subscription.",
                     Status = 402
                 })
                 { StatusCode = 402 };

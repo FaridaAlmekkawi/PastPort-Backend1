@@ -8,13 +8,8 @@ namespace PastPort.API.Controllers;
 
 [ApiController]
 [Route("api/subscriptions")]
-public class SubscriptionController : ControllerBase
+public class SubscriptionController(ISubscriptionService subscriptionService) : ControllerBase
 {
-    private readonly ISubscriptionService _subscriptionService;
-
-    public SubscriptionController(ISubscriptionService subscriptionService)
-        => _subscriptionService = subscriptionService;
-
     // ── Helpers ──────────────────────────────────────────────
     private string UserId => User.FindFirstValue(ClaimTypes.NameIdentifier)
         ?? throw new UnauthorizedAccessException("User identity not found.");
@@ -26,7 +21,7 @@ public class SubscriptionController : ControllerBase
     [ProducesResponseType(typeof(IEnumerable<PlanDto>), 200)]
     public async Task<IActionResult> GetPlans(CancellationToken ct)
     {
-        var plans = await _subscriptionService.GetActivePlansAsync(ct);
+        var plans = await subscriptionService.GetActivePlansAsync(ct);
         return Ok(plans);
     }
 
@@ -38,7 +33,7 @@ public class SubscriptionController : ControllerBase
     [ProducesResponseType(404)]
     public async Task<IActionResult> GetPlanById(Guid id, CancellationToken ct)
     {
-        var plan = await _subscriptionService.GetPlanByIdAsync(id, ct);
+        var plan = await subscriptionService.GetPlanByIdAsync(id, ct);
         return plan is null ? NotFound() : Ok(plan);
     }
 
@@ -50,7 +45,7 @@ public class SubscriptionController : ControllerBase
     [ProducesResponseType(204)]
     public async Task<IActionResult> GetMySubscription(CancellationToken ct)
     {
-        var sub = await _subscriptionService.GetActiveSubscriptionAsync(UserId, ct);
+        var sub = await subscriptionService.GetActiveSubscriptionAsync(UserId, ct);
         return sub is null ? NoContent() : Ok(sub);
     }
 
@@ -71,7 +66,7 @@ public class SubscriptionController : ControllerBase
     {
         try
         {
-            var result = await _subscriptionService.InitiateCheckoutAsync(UserId, request, ct);
+            var result = await subscriptionService.InitiateCheckoutAsync(UserId, request, ct);
             return Ok(result);
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("already has an active"))
@@ -109,7 +104,7 @@ public class SubscriptionController : ControllerBase
     {
         try
         {
-            var result = await _subscriptionService.ChangePlanAsync(UserId, request, ct);
+            var result = await subscriptionService.ChangePlanAsync(UserId, request, ct);
             return Ok(result);
         }
         catch (InvalidOperationException ex)
@@ -135,7 +130,7 @@ public class SubscriptionController : ControllerBase
     {
         try
         {
-            await _subscriptionService.CancelSubscriptionAsync(UserId, ct);
+            await subscriptionService.CancelSubscriptionAsync(UserId, ct);
             return NoContent();
         }
         catch (InvalidOperationException ex)
@@ -159,7 +154,7 @@ public class SubscriptionController : ControllerBase
     [ProducesResponseType(typeof(FeatureAccessResult), 200)]
     public async Task<IActionResult> CheckFeatureAccess(string slug, CancellationToken ct)
     {
-        var hasAccess = await _subscriptionService.HasFeatureAccessAsync(UserId, slug, ct);
+        var hasAccess = await subscriptionService.HasFeatureAccessAsync(UserId, slug, ct);
         return Ok(new FeatureAccessResult(slug, hasAccess));
     }
 }

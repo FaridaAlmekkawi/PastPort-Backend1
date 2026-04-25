@@ -15,28 +15,17 @@ using PastPort.Domain.Interfaces;
 using PastPort.Application.Interfaces;
 using System.ComponentModel.DataAnnotations;
 using PastPort.Domain.Enums;
-using PastPort.API.Extensions;
 
 namespace PastPort.API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class AssetsController : ControllerBase
+    public class AssetsController(
+        IAssetRepository assetRepository,
+        IFileStorageService fileStorageService,
+        ILogger<AssetsController> logger)
+        : ControllerBase
     {
-        private readonly IAssetRepository _assetRepository;
-        private readonly IFileStorageService _fileStorageService;
-        private readonly ILogger<AssetsController> _logger;
-
-        public AssetsController(
-            IAssetRepository assetRepository,
-            IFileStorageService fileStorageService,
-            ILogger<AssetsController> logger)
-        {
-            _assetRepository = assetRepository;
-            _fileStorageService = fileStorageService;
-            _logger = logger;
-        }
-
         // ✅ تقدر تسيب ده Anonymous لأن Unity محتاج يعرف الـ assets بتاعة الـ scene
         // من غير ما يكون عنده token — لكن لو عندك auth في Unity سيبه [Authorize]
         [AllowAnonymous]
@@ -45,12 +34,12 @@ namespace PastPort.API.Controllers
         {
             try
             {
-                var assets = await _assetRepository.GetAssetsBySceneIdAsync(sceneId);
+                var assets = await assetRepository.GetAssetsBySceneIdAsync(sceneId);
                 return Ok(new { success = true, data = assets });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting scene assets for {SceneId}", sceneId);
+                logger.LogError(ex, "Error getting scene assets for {SceneId}", sceneId);
                 return BadRequest(new { error = ex.Message });
             }
         }
@@ -65,7 +54,7 @@ namespace PastPort.API.Controllers
                 var results = new List<object>();
                 foreach (var item in request.Assets)
                 {
-                    var asset = await _assetRepository.GetAssetByFileNameAsync(item.FileName);
+                    var asset = await assetRepository.GetAssetByFileNameAsync(item.FileName);
                     results.Add(new
                     {
                         fileName = item.FileName,
@@ -77,7 +66,7 @@ namespace PastPort.API.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error checking assets");
+                logger.LogError(ex, "Error checking assets");
                 return BadRequest(new { error = ex.Message });
             }
         }
@@ -92,16 +81,16 @@ namespace PastPort.API.Controllers
         {
             try
             {
-                var asset = await _assetRepository.GetAssetByFileNameAsync(fileName);
+                var asset = await assetRepository.GetAssetByFileNameAsync(fileName);
                 if (asset == null)
                     return NotFound(new { error = "Asset not found" });
 
-                var fileBytes = await _fileStorageService.GetFileAsync(asset.FileUrl);
+                var fileBytes = await fileStorageService.GetFileAsync(asset.FileUrl);
                 return File(fileBytes, GetContentType(fileName), fileName);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error downloading asset {FileName}", fileName);
+                logger.LogError(ex, "Error downloading asset {FileName}", fileName);
                 return BadRequest(new { error = ex.Message });
             }
         }
@@ -115,7 +104,7 @@ namespace PastPort.API.Controllers
         public async Task<IActionResult> UploadAsset(
             [Required]
             [FromForm(Name = "file")]
-            IFormFile file,
+            IFormFile? file,
             [Required]
             [FromForm(Name = "name")]
             string name,
@@ -139,8 +128,8 @@ namespace PastPort.API.Controllers
                 var assetType = (AssetType)type;
                 var folder = GetFolderByType(assetType);
 
-                var fileUrl = await _fileStorageService.UploadFileAsync(file, folder);
-                var fileBytes = await _fileStorageService.GetFileAsync(fileUrl);
+                var fileUrl = await fileStorageService.UploadFileAsync(file, folder);
+                var fileBytes = await fileStorageService.GetFileAsync(fileUrl);
 
                 // ✅ FIXED: بنستخدم SHA256 بدل MD5
                 // MD5 مكسور cryptographically ومش مناسب لـ file integrity
@@ -162,9 +151,9 @@ namespace PastPort.API.Controllers
                     CreatedAt = DateTime.UtcNow
                 };
 
-                await _assetRepository.AddAsync(asset);
+                await assetRepository.AddAsync(asset);
 
-                _logger.LogInformation("Asset uploaded: {AssetName} by user", name);
+                logger.LogInformation("Asset uploaded: {AssetName} by user", name);
 
                 return Ok(new
                 {
@@ -183,7 +172,7 @@ namespace PastPort.API.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Upload error for asset {Name}", name);
+                logger.LogError(ex, "Upload error for asset {Name}", name);
                 return BadRequest(new { error = ex.Message });
             }
         }
@@ -194,19 +183,19 @@ namespace PastPort.API.Controllers
         {
             try
             {
-                var asset = await _assetRepository.GetByIdAsync(assetId);
+                var asset = await assetRepository.GetByIdAsync(assetId);
                 if (asset == null)
                     return NotFound(new { error = "Asset not found" });
 
-                await _fileStorageService.DeleteFileAsync(asset.FileUrl);
-                await _assetRepository.DeleteAsync(asset);
+                await fileStorageService.DeleteFileAsync(asset.FileUrl);
+                await assetRepository.DeleteAsync(asset);
 
-                _logger.LogInformation("Asset deleted: {AssetId}", assetId);
+                logger.LogInformation("Asset deleted: {AssetId}", assetId);
                 return Ok(new { success = true });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error deleting asset {AssetId}", assetId);
+                logger.LogError(ex, "Error deleting asset {AssetId}", assetId);
                 return BadRequest(new { error = ex.Message });
             }
         }

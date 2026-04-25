@@ -8,19 +8,11 @@ namespace PastPort.API.Controllers;
 [Authorize]
 [ApiController]
 [Route("api/[controller]")]
-public class CharactersController : BaseApiController
+public class CharactersController(
+    ICharacterService characterService,
+    ILogger<CharactersController> logger)
+    : BaseApiController
 {
-    private readonly ICharacterService _characterService;
-    private readonly ILogger<CharactersController> _logger;
-
-    public CharactersController(
-        ICharacterService characterService,
-        ILogger<CharactersController> logger)
-    {
-        _characterService = characterService;
-        _logger = logger;
-    }
-
     /// <summary>
     /// Get all characters
     /// </summary>
@@ -30,12 +22,12 @@ public class CharactersController : BaseApiController
     {
         try
         {
-            var characters = await _characterService.GetAllCharactersAsync();
+            var characters = await characterService.GetAllCharactersAsync();
             return Ok(new { data = characters, message = "Characters retrieved successfully" });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to retrieve characters");
+            logger.LogError(ex, "Failed to retrieve characters");
             return HandleError(ex);
         }
     }
@@ -50,12 +42,12 @@ public class CharactersController : BaseApiController
     {
         try
         {
-            var character = await _characterService.GetCharacterByIdAsync(id);
+            var character = await characterService.GetCharacterByIdAsync(id);
             return HandleResult(character);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to retrieve character {CharacterId}", id);
+            logger.LogError(ex, "Failed to retrieve character {CharacterId}", id);
             return HandleError(ex);
         }
     }
@@ -69,12 +61,12 @@ public class CharactersController : BaseApiController
     {
         try
         {
-            var characters = await _characterService.GetCharactersBySceneIdAsync(sceneId);
+            var characters = await characterService.GetCharactersBySceneIdAsync(sceneId);
             return Ok(new { data = characters, message = "Characters retrieved successfully" });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to retrieve characters for scene {SceneId}", sceneId);
+            logger.LogError(ex, "Failed to retrieve characters for scene {SceneId}", sceneId);
             return HandleError(ex);
         }
     }
@@ -89,14 +81,14 @@ public class CharactersController : BaseApiController
     {
         try
         {
-            var character = await _characterService.CreateCharacterAsync(request);
-            _logger.LogInformation("Character created: {CharacterId}", character.Id);
+            var character = await characterService.CreateCharacterAsync(request);
+            logger.LogInformation("Character created: {CharacterId}", character.Id);
             return CreatedAtAction(nameof(GetCharacterById), new { id = character.Id },
                 new { data = character, message = "Character created successfully" });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to create character");
+            logger.LogError(ex, "Failed to create character");
             return HandleError(ex);
         }
     }
@@ -111,13 +103,13 @@ public class CharactersController : BaseApiController
     {
         try
         {
-            var character = await _characterService.UpdateCharacterAsync(id, request);
-            _logger.LogInformation("Character updated: {CharacterId}", id);
+            var character = await characterService.UpdateCharacterAsync(id, request);
+            logger.LogInformation("Character updated: {CharacterId}", id);
             return Ok(new { data = character, message = "Character updated successfully" });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to update character {CharacterId}", id);
+            logger.LogError(ex, "Failed to update character {CharacterId}", id);
             return HandleError(ex);
         }
     }
@@ -132,13 +124,13 @@ public class CharactersController : BaseApiController
     {
         try
         {
-            await _characterService.DeleteCharacterAsync(id);
-            _logger.LogInformation("Character deleted: {CharacterId}", id);
+            await characterService.DeleteCharacterAsync(id);
+            logger.LogInformation("Character deleted: {CharacterId}", id);
             return Ok(new { message = "Character deleted successfully" });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to delete character {CharacterId}", id);
+            logger.LogError(ex, "Failed to delete character {CharacterId}", id);
             return HandleError(ex);
         }
     }

@@ -17,30 +17,20 @@ namespace PastPort.API.Hubs;
 /// entirely in NpcAIService.
 /// </summary>
 [Authorize]
-public sealed class NpcHub : Hub
+public sealed class NpcHub(
+    INpcAIService aiService,
+    IMemoryCache cache,
+    ILogger<NpcHub> logger)
+    : Hub
 {
     // Maximum audio payload Unity may send in a single call (10 MB).
     private const int MaxAudioBytes = 10 * 1024 * 1024;
-
-    private readonly INpcAIService _aiService;
-    private readonly IMemoryCache _cache;
-    private readonly ILogger<NpcHub> _logger;
-
-    public NpcHub(
-        INpcAIService aiService,
-        IMemoryCache cache,
-        ILogger<NpcHub> logger)
-    {
-        _aiService = aiService;
-        _cache = cache;
-        _logger = logger;
-    }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
     public override Task OnConnectedAsync()
     {
-        _logger.LogInformation(
+        logger.LogInformation(
             "Unity client connected: ConnectionId={Id}", Context.ConnectionId);
         return base.OnConnectedAsync();
     }
@@ -48,11 +38,11 @@ public sealed class NpcHub : Hub
     public override Task OnDisconnectedAsync(Exception? exception)
     {
         if (exception is not null)
-            _logger.LogWarning(exception,
+            logger.LogWarning(exception,
                 "Unity client disconnected with error: ConnectionId={Id}",
                 Context.ConnectionId);
         else
-            _logger.LogInformation(
+            logger.LogInformation(
                 "Unity client disconnected cleanly: ConnectionId={Id}",
                 Context.ConnectionId);
 
@@ -71,14 +61,14 @@ public sealed class NpcHub : Hub
     public async Task StartConversation(
         string sessionId,
         string roleOrName,
-        byte[] audioBytes)
+        byte[]? audioBytes)
     {
         // ── Guard: session must exist in cache ─────────────────────────────
         var cacheKey = NpcSessionController.BuildCacheKey(sessionId);
-        if (!_cache.TryGetValue(cacheKey, out NpcSessionData? sessionData)
+        if (!cache.TryGetValue(cacheKey, out NpcSessionData? sessionData)
             || sessionData is null)
         {
-            _logger.LogWarning(
+            logger.LogWarning(
                 "StartConversation called with unknown/expired sessionId='{Id}' " +
                 "from connection={Conn}",
                 sessionId, Context.ConnectionId);
@@ -102,7 +92,7 @@ public sealed class NpcHub : Hub
             return;
         }
 
-        _logger.LogInformation(
+        logger.LogInformation(
             "StartConversation: session={Session}, role='{Role}', audio={Bytes} bytes, conn={Conn}",
             sessionId, roleOrName, audioBytes.Length, Context.ConnectionId);
 
@@ -111,9 +101,8 @@ public sealed class NpcHub : Hub
         // propagating into the WebSocket receive loop automatically.
         var ct = Context.ConnectionAborted;
 
-        await foreach (var chunk in _aiService
-                           .StreamConversationAsync(audioBytes, sessionData, roleOrName, ct)
-                           .WithCancellation(ct))
+        await foreach (var chunk in aiService
+                           .StreamConversationAsync(audioBytes, sessionData, roleOrName, ct))
         {
             // Pattern-match on the sealed record hierarchy
             switch (chunk)
@@ -140,12 +129,12 @@ public sealed class NpcHub : Hub
 
                 case DoneChunk:
                     await Clients.Caller.SendAsync("OnConversationDone", ct);
-                    _logger.LogInformation(
+                    logger.LogInformation(
                         "Conversation complete for session={Session}", sessionId);
                     break;
 
                 case ErrorChunk err:
-                    _logger.LogWarning(
+                    logger.LogWarning(
                         "LLM error for session={Session}: {Reason}", sessionId, err.Reason);
                     await Clients.Caller.SendAsync("OnSessionError", err.Reason, ct);
                     break;
@@ -159,9 +148,9 @@ public sealed class NpcHub : Hub
     public Task EndSession(string sessionId)
     {
         var cacheKey = NpcSessionController.BuildCacheKey(sessionId);
-        _cache.Remove(cacheKey);
+        cache.Remove(cacheKey);
 
-        _logger.LogInformation(
+        logger.LogInformation(
             "Session {SessionId} ended by client {Conn}", sessionId, Context.ConnectionId);
 
         return Task.CompletedTask;

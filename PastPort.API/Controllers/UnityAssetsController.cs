@@ -15,22 +15,12 @@ namespace PastPort.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class UnityAssetsController : ControllerBase
+public class UnityAssetsController(
+    IAssetRepository assetRepository,
+    IFileStorageService fileStorageService,
+    ILogger<UnityAssetsController> logger)
+    : ControllerBase
 {
-    private readonly IAssetRepository _assetRepository;
-    private readonly IFileStorageService _fileStorageService;
-    private readonly ILogger<UnityAssetsController> _logger;
-
-    public UnityAssetsController(
-        IAssetRepository assetRepository,
-        IFileStorageService fileStorageService,
-        ILogger<UnityAssetsController> logger)
-    {
-        _assetRepository = assetRepository;
-        _fileStorageService = fileStorageService;
-        _logger = logger;
-    }
-
     /// <summary>
     /// البحث عن Asset بالاسم
     /// Unity استخدم: GET /api/unityassets/search?name=chair_01
@@ -50,7 +40,7 @@ public class UnityAssetsController : ControllerBase
             //
             // لو عندك 10,000 asset، كلهم بيتحملوا في الـ RAM عشان تجيب واحد بس!
             // دلوقتي: بنبعت الـ filter للـ database مباشرة بـ WHERE clause
-            var asset = await _assetRepository.GetAssetByNameAsync(name);
+            var asset = await assetRepository.GetAssetByNameAsync(name);
 
             if (asset == null)
                 return NotFound(new { error = "Asset not found" });
@@ -73,7 +63,7 @@ public class UnityAssetsController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error searching asset with name {Name}", name);
+            logger.LogError(ex, "Error searching asset with name {Name}", name);
             return BadRequest(new { error = ex.Message });
         }
     }
@@ -88,7 +78,7 @@ public class UnityAssetsController : ControllerBase
     {
         try
         {
-            var assets = await _assetRepository.GetAssetsBySceneIdAsync(sceneId);
+            var assets = await assetRepository.GetAssetsBySceneIdAsync(sceneId);
 
             return Ok(new
             {
@@ -108,7 +98,7 @@ public class UnityAssetsController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting scene assets for {SceneId}", sceneId);
+            logger.LogError(ex, "Error getting scene assets for {SceneId}", sceneId);
             return BadRequest(new { error = ex.Message });
         }
     }
@@ -128,23 +118,23 @@ public class UnityAssetsController : ControllerBase
     {
         try
         {
-            var asset = await _assetRepository.GetByIdAsync(assetId);
+            var asset = await assetRepository.GetByIdAsync(assetId);
             if (asset == null)
                 return NotFound(new { error = "Asset not found" });
 
-            if (!_fileStorageService.FileExists(asset.FileUrl))
+            if (!fileStorageService.FileExists(asset.FileUrl))
                 return NotFound(new { error = "File not found on server" });
 
-            var fileBytes = await _fileStorageService.GetFileAsync(asset.FileUrl);
+            var fileBytes = await fileStorageService.GetFileAsync(asset.FileUrl);
             var contentType = GetContentType(asset.FileName);
 
-            _logger.LogInformation("Asset downloaded: {AssetId}", assetId);
+            logger.LogInformation("Asset downloaded: {AssetId}", assetId);
 
             return File(fileBytes, contentType, asset.FileName);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error downloading asset {AssetId}", assetId);
+            logger.LogError(ex, "Error downloading asset {AssetId}", assetId);
             return BadRequest(new { error = ex.Message });
         }
     }
@@ -159,11 +149,11 @@ public class UnityAssetsController : ControllerBase
     {
         try
         {
-            var asset = await _assetRepository.GetByIdAsync(request.AssetId);
+            var asset = await assetRepository.GetByIdAsync(request.AssetId);
             if (asset == null)
                 return NotFound(new { error = "Asset not found" });
 
-            var fileExists = _fileStorageService.FileExists(asset.FileUrl);
+            var fileExists = fileStorageService.FileExists(asset.FileUrl);
             var hashMatches = asset.FileHash == request.FileHash;
 
             return Ok(new
@@ -187,7 +177,7 @@ public class UnityAssetsController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error verifying asset {AssetId}", request.AssetId);
+            logger.LogError(ex, "Error verifying asset {AssetId}", request.AssetId);
             return BadRequest(new { error = ex.Message });
         }
     }
