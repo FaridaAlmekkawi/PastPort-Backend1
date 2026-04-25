@@ -19,6 +19,7 @@ using AspNetCoreRateLimit;
 using Serilog;
 using PastPort.Application.Services;
 using PastPort.API.Hubs;
+using PastPort.Application.Models.Npc;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -102,13 +103,16 @@ builder.Services.AddAuthentication(options =>
     Log.Information("✅ Facebook Authentication enabled");
 });
 
-// 🟢 --- Rate Limiting & Memory Cache (تم تحديث الـ MemoryCache هنا) ---
+// 🟢 --- Memory Cache (Used by NPC Sessions & Rate Limiting) ---
+// NpcSessionController uses IMemoryCache directly — no extra registration needed.
 builder.Services.AddMemoryCache(options =>
 {
     options.SizeLimit = 10_000; // max concurrent sessions
     options.ExpirationScanFrequency = TimeSpan.FromMinutes(5);
     options.CompactionPercentage = 0.20; // remove 20% oldest when limit hit
 });
+
+// --- Rate Limiting ---
 builder.Services.Configure<IpRateLimitOptions>(builder.Configuration.GetSection("IpRateLimiting"));
 builder.Services.AddSingleton<IIpPolicyStore, MemoryCacheIpPolicyStore>();
 builder.Services.AddSingleton<IRateLimitCounterStore, MemoryCacheRateLimitCounterStore>();
@@ -116,7 +120,7 @@ builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>()
 builder.Services.AddSingleton<IProcessingStrategy, AsyncKeyLockProcessingStrategy>();
 builder.Services.AddInMemoryRateLimiting();
 
-// --- DI
+// --- DI Repositories & Services ---
 builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 builder.Services.AddScoped<ISceneRepository, SceneRepository>();
 builder.Services.AddScoped<ICharacterRepository, CharacterRepository>();
@@ -137,24 +141,13 @@ builder.Services.AddScoped<IPaymentService, PayPalService>();
 builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
 builder.Services.AddScoped<IAIConversationService, MockAIConversationService>();
 
-// --- External configs
+// --- External configs ---
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 builder.Services.Configure<PayPalSettings>(builder.Configuration.GetSection("PayPal"));
 builder.Services.Configure<NpcAISettings>(builder.Configuration.GetSection("NpcAI"));
 
-// 🟢 --- NPC AI SERVICE (تم تغييره من HttpClient إلى Scoped للـ WebSockets) ---
+// 🟢 --- NPC AI SERVICE (WebSockets) ---
 builder.Services.AddScoped<INpcAIService, NpcAIService>();
-
-// --- Redis
-builder.Services.AddSingleton<StackExchange.Redis.IConnectionMultiplexer>(sp =>
-{
-    var redisConnString = builder.Configuration.GetConnectionString("Redis") ?? "localhost:6379";
-    var options = StackExchange.Redis.ConfigurationOptions.Parse(redisConnString);
-    options.AbortOnConnectFail = false;
-    return StackExchange.Redis.ConnectionMultiplexer.Connect(options);
-});
-
-builder.Services.AddSingleton<INpcSessionStore, RedisNpcSessionStore>();
 
 // 🟢 --- SIGNALR SERVICES ---
 builder.Services.AddSignalR(options =>
@@ -180,7 +173,7 @@ builder.Services.AddSignalR(options =>
             .WithCompression(MessagePack.MessagePackCompression.Lz4BlockArray);
 });
 
-// --- Swagger
+// --- Swagger ---
 builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new OpenApiInfo { Title = "PastPort API", Version = "v1" });
@@ -210,7 +203,7 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-// --- CORS
+// --- CORS ---
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
@@ -242,9 +235,6 @@ else
 {
     app.UseHsts();
 }
-
-// ❌ تم إيقاف السطر ده لأنه بيوقع السيرفر على استضافتك
-// app.UseHttpsRedirection(); 
 
 app.UseStaticFiles();
 
@@ -289,7 +279,7 @@ app.MapHub<NpcHub>("/npcHub", options =>
 });
 
 // ==================================================
-// SEEDING (✅ تم إضافة الحماية هنا)
+// SEEDING
 // ==================================================
 using (var scope = app.Services.CreateScope())
 {

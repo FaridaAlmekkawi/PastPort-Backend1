@@ -1,5 +1,4 @@
-﻿// PastPort.Infrastructure/ExternalServices/AI/NpcAIService.cs
-using System.Net.WebSockets;
+﻿using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
@@ -84,22 +83,21 @@ public sealed class NpcAIService : INpcAIService
         string roleOrName,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        // Wrap with an absolute timeout so a silent LLM doesn't hang a hub connection.
         using var timeoutCts = CancellationTokenSource
             .CreateLinkedTokenSource(cancellationToken);
         timeoutCts.CancelAfter(
             TimeSpan.FromSeconds(_settings.ConversationTimeoutSeconds));
 
         var token = timeoutCts.Token;
-
         using var ws = new ClientWebSocket();
 
-        // ── 1. Connect ──────────────────────────────────────────────────────
-        bool connected = false;
+        // ── 1. Connect ──────────────────────────────────────────────────────────
+        // FIX CS1631: capture error outside catch, yield after the try/catch block
+        NpcStreamChunk? earlyError = null;
+
         try
         {
             await ws.ConnectAsync(new Uri(_settings.WebSocketUrl), token);
-            connected = true;
             _logger.LogInformation(
                 "NPC WS connected to {Url} for role '{Role}'",
                 _settings.WebSocketUrl, roleOrName);
@@ -107,18 +105,20 @@ public sealed class NpcAIService : INpcAIService
         catch (Exception ex) when (!token.IsCancellationRequested)
         {
             _logger.LogError(ex, "NPC WebSocket connection failed");
-            yield return new ErrorChunk("Could not connect to the LLM service.");
+            earlyError = new ErrorChunk("Could not connect to the LLM service.");
+        }
+
+        if (earlyError is not null)
+        {
+            yield return earlyError;
             yield break;
         }
 
-        if (!connected) yield break;
-
-        // ── 2. Send payload ─────────────────────────────────────────────────
+        // ── 2. Send payload ──────────────────────────────────────────────────────
         try
         {
             var payload = new LlmSendPayload
             {
-                // Python expects a JSON array of signed byte values
                 Audio = audioBytes.Select(b => (int)(sbyte)b).ToArray(),
                 World = new LlmWorld
                 {
@@ -139,66 +139,70 @@ public sealed class NpcAIService : INpcAIService
                 cancellationToken: token);
 
             _logger.LogDebug(
-                "NPC WS sent payload: audio={Bytes} bytes, world={World}",
-                audioBytes.Length, sessionData.Civilization);
+                "NPC WS sent payload: audio={Bytes} bytes", audioBytes.Length);
         }
         catch (Exception ex) when (!token.IsCancellationRequested)
         {
             _logger.LogError(ex, "Failed to send NPC WS payload");
-            yield return new ErrorChunk("Failed to send audio to the LLM.");
+            // FIX CS1631: set local, yield after catch
+            earlyError = new ErrorChunk("Failed to send audio to the LLM.");
+        }
+
+        if (earlyError is not null)
+        {
             await CloseWebSocketAsync(ws);
+            yield return earlyError;
             yield break;
         }
 
-        // ── 3. Stream responses ─────────────────────────────────────────────
-        // The Python protocol sends frames in this order:
-        //   TextFrame  {"type":"meta", ...}
-        //   BinaryFrame <raw WAV bytes>
-        //   TextFrame  {"type":"done"}
-        //
-        // We must handle WebSocket message fragmentation: a single logical
-        // message may arrive in multiple frames (EndOfMessage == false).
-        // We accumulate into a MemoryStream until EndOfMessage, then process.
-
+        // ── 3. Stream responses ──────────────────────────────────────────────────
         var buffer = new byte[_settings.ReceiveBufferBytes];
         using var accumulator = new MemoryStream();
 
         while (ws.State == WebSocketState.Open && !token.IsCancellationRequested)
         {
-            WebSocketReceiveResult result;
+            // ✅ تم حل الخطأ CS0165 عن طريق إعطاء قيمة مبدئية null!
+            WebSocketReceiveResult result = null!;
+            NpcStreamChunk? receiveError = null;
+
             try
             {
-                result = await ws.ReceiveAsync(buffer.AsMemory(), token);
+                result = await ws.ReceiveAsync(
+                    new ArraySegment<byte>(buffer),
+                    token);
             }
             catch (OperationCanceledException)
             {
-                _logger.LogInformation("NPC WS receive cancelled (timeout or client disconnect)");
+                _logger.LogInformation("NPC WS receive cancelled");
                 break;
             }
             catch (WebSocketException ex)
             {
-                _logger.LogWarning(ex, "NPC WS receive error, closing");
-                yield return new ErrorChunk("LLM connection dropped unexpectedly.");
-                break;
+                _logger.LogWarning(ex, "NPC WS receive error");
+                receiveError = new ErrorChunk("LLM connection dropped unexpectedly.");
             }
 
-            if (result.MessageType == WebSocketMessageType.Close)
+            if (receiveError is not null)
+            {
+                yield return receiveError;
+                yield break;
+            }
+
+            if (result!.MessageType == WebSocketMessageType.Close)
             {
                 _logger.LogInformation("NPC WS closed by server");
                 break;
             }
 
-            // Accumulate fragmented frames
             accumulator.Write(buffer, 0, result.Count);
 
             if (!result.EndOfMessage)
-                continue; // wait for rest of message
+                continue;
 
-            // Full message received — process and reset accumulator
             var fullMessage = accumulator.ToArray();
             accumulator.SetLength(0);
 
-            NpcStreamChunk? chunk = result.MessageType switch
+            var chunk = result.MessageType switch
             {
                 WebSocketMessageType.Binary => ParseBinaryFrame(fullMessage),
                 WebSocketMessageType.Text => ParseTextFrame(fullMessage),
@@ -208,7 +212,7 @@ public sealed class NpcAIService : INpcAIService
             if (chunk is DoneChunk)
             {
                 yield return chunk;
-                break; // protocol complete
+                break;
             }
 
             if (chunk is not null)

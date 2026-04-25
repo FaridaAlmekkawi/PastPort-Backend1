@@ -44,34 +44,37 @@ public class JwtTokenService : IJwtTokenService
         var roles = await _userManager.GetRolesAsync(user);
         var userClaims = await _userManager.GetClaimsAsync(user);
 
-        var claims = new List<Claim>
-        {
+        // IDE0028 / IDE0300: Collection expression [] instead of new List<Claim>
+        // IDE0090: Simplified 'new' expressions (target-typed new)
+        List<Claim> claims =
+        [
             // FIX BUG 19: ClaimTypes.NameIdentifier is what every controller reads via
             // User.FindFirst(ClaimTypes.NameIdentifier). Without this claim, every
             // authenticated endpoint that extracts userId returns null → Unauthorized().
-            new Claim(ClaimTypes.NameIdentifier, user.Id),
+            new(ClaimTypes.NameIdentifier, user.Id),
 
             // Standard JWT subject claim
-            new Claim(JwtRegisteredClaimNames.Sub, user.Id),
-            new Claim(JwtRegisteredClaimNames.Email, user.Email!),
-            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new(JwtRegisteredClaimNames.Sub, user.Id),
+            new(JwtRegisteredClaimNames.Email, user.Email!),
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
 
             // REMOVED: "uid" was a duplicate of Sub — unnecessary extra claim
             // Added null fallback to prevent exceptions if names are null
-            new Claim("FirstName", user.FirstName ?? ""),
-            new Claim("LastName", user.LastName ?? "")
-        };
+            new("FirstName", user.FirstName ?? ""),
+            new("LastName", user.LastName ?? "")
+        ];
 
         foreach (var role in roles)
-            claims.Add(new Claim(ClaimTypes.Role, role));
+            claims.Add(new(ClaimTypes.Role, role)); // IDE0090
 
         claims.AddRange(userClaims);
 
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.SecretKey));
-        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+        // IDE0090: Simplified 'new' expressions for variables
+        SymmetricSecurityKey key = new(Encoding.UTF8.GetBytes(_jwtSettings.SecretKey));
+        SigningCredentials creds = new(key, SecurityAlgorithms.HmacSha256);
 
         // FIX BUG 6: Use ExpiryMinutes from config instead of hardcoded 60
-        var token = new JwtSecurityToken(
+        JwtSecurityToken token = new(
             issuer: _jwtSettings.Issuer,
             audience: _jwtSettings.Audience,
             claims: claims,
@@ -92,7 +95,8 @@ public class JwtTokenService : IJwtTokenService
 
     public async Task<RefreshToken> CreateRefreshTokenAsync(ApplicationUser user)
     {
-        var refreshToken = new RefreshToken
+        // IDE0090: Target-typed new
+        RefreshToken refreshToken = new()
         {
             Id = Guid.NewGuid(),
             Token = await GenerateRefreshTokenAsync(),
