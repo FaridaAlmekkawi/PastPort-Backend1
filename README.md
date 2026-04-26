@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/pastport-logo.png" alt="PastPort Logo" width="120" />
+  <img src="docs/assets/pastport-logo.jpg" alt="PastPort Logo" width="120" />
 </p>
 
 <h1 align="center">PastPort Backend API</h1>
