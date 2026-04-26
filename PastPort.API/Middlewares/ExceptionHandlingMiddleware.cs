@@ -1,13 +1,39 @@
-﻿using System.Net;
+using System.Net;
 using System.Text.Json;
-using PastPort.Domain.Exceptions; // تأكد من إضافة هذا الـ using
+using PastPort.Domain.Exceptions;
 
 namespace PastPort.API.Middlewares;
 
+/// <summary>
+/// Global exception handling middleware that intercepts all unhandled exceptions
+/// thrown during request processing and converts them into standardized JSON
+/// error responses. Prevents stack trace leakage in production environments.
+/// </summary>
+/// <remarks>
+/// <para>
+/// This middleware is registered early in the ASP.NET Core pipeline in <c>Program.cs</c>
+/// and wraps all subsequent middleware and controller execution in a try-catch block.
+/// </para>
+/// <para>
+/// Exception-to-status-code mapping:
+/// <list type="bullet">
+///   <item><see cref="UnauthorizedAccessException"/> → 401 Unauthorized</item>
+///   <item><see cref="NotFoundException"/> → 404 Not Found</item>
+///   <item><see cref="ValidationException"/> → 400 Bad Request</item>
+///   <item><see cref="ArgumentException"/> → 400 Bad Request</item>
+///   <item><see cref="InvalidOperationException"/> → 400 Bad Request</item>
+///   <item>All others → 500 Internal Server Error</item>
+/// </list>
+/// </para>
+/// </remarks>
 public class ExceptionHandlingMiddleware(
     RequestDelegate next,
     ILogger<ExceptionHandlingMiddleware> logger)
 {
+    /// <summary>
+    /// Invokes the next middleware in the pipeline, catching any unhandled exceptions.
+    /// </summary>
+    /// <param name="context">The current HTTP context.</param>
     public async Task InvokeAsync(HttpContext context)
     {
         try
@@ -21,9 +47,14 @@ public class ExceptionHandlingMiddleware(
         }
     }
 
+    /// <summary>
+    /// Maps the exception to an appropriate HTTP status code and writes
+    /// a JSON response body with error details and an ISO 8601 timestamp.
+    /// </summary>
+    /// <param name="context">The current HTTP context.</param>
+    /// <param name="exception">The unhandled exception.</param>
     private static Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
-        // استخدام switch expression لتحديد حالة الكود والرسالة بشكل نظيف
         var (statusCode, message) = exception switch
         {
             UnauthorizedAccessException =>
@@ -38,7 +69,6 @@ public class ExceptionHandlingMiddleware(
             ArgumentException =>
                 (HttpStatusCode.BadRequest, "Invalid request parameters"),
 
-            // منع تسريب تفاصيل الخطأ الداخلية في الـ Production
             InvalidOperationException =>
                 (HttpStatusCode.BadRequest, "The operation could not be completed"),
 
@@ -46,7 +76,6 @@ public class ExceptionHandlingMiddleware(
                 (HttpStatusCode.InternalServerError, "An error occurred while processing your request")
         };
 
-        // من أفضل الممارسات تحديد الـ ContentType قبل الـ StatusCode
         context.Response.ContentType = "application/json";
         context.Response.StatusCode = (int)statusCode;
 
@@ -54,7 +83,7 @@ public class ExceptionHandlingMiddleware(
         {
             error = message,
             statusCode = (int)statusCode,
-            timestamp = DateTime.UtcNow.ToString("O") // تنسيق ISO 8601 للوقت
+            timestamp = DateTime.UtcNow.ToString("O")
         };
 
         var jsonResponse = JsonSerializer.Serialize(response);

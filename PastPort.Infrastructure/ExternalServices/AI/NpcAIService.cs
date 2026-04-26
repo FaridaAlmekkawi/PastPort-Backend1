@@ -1,4 +1,4 @@
-﻿using System.Net.WebSockets;
+using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
@@ -224,10 +224,10 @@ public sealed class NpcAIService : INpcAIService
 
     // ── Parsers ───────────────────────────────────────────────────────────────
 
-    private static NpcStreamChunk ParseBinaryFrame(byte[] data)
+    internal static NpcStreamChunk ParseBinaryFrame(byte[] data)
         => new AudioChunk(data);
 
-    private NpcStreamChunk ParseTextFrame(byte[] data)
+    internal NpcStreamChunk ParseTextFrame(byte[] data)
     {
         try
         {

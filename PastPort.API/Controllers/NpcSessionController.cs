@@ -1,8 +1,8 @@
-﻿// PastPort.API/Controllers/NpcSessionController.cs
+// PastPort.API/Controllers/NpcSessionController.cs
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Caching.Memory;
+using PastPort.Application.Interfaces;
 using PastPort.Application.Models.Npc;
 
 namespace PastPort.API.Controllers;
@@ -25,7 +25,7 @@ public sealed record StartSessionResponse(
 [ApiController]
 [Route("api/npc")]
 public sealed class NpcSessionController(
-    IMemoryCache cache,
+    ICacheService cache,
     ILogger<NpcSessionController> logger)
     : ControllerBase
 {
@@ -53,14 +53,7 @@ public sealed class NpcSessionController(
             Civilization: request.Civilization,
             CreatedAt: DateTime.UtcNow);
 
-        var cacheOptions = new MemoryCacheEntryOptions()
-            .SetAbsoluteExpiration(SessionTtl)
-            // Eviction callback so we can log and clean up if needed
-            .RegisterPostEvictionCallback((key, _, reason, _) =>
-                logger.LogInformation(
-                    "NPC session {Key} evicted. Reason: {Reason}", key, reason));
-
-        cache.Set(BuildCacheKey(sessionId), sessionData, cacheOptions);
+        cache.Set(BuildCacheKey(sessionId), sessionData, SessionTtl);
 
         logger.LogInformation(
             "NPC session {SessionId} created for civilization '{Civ}', expires {Exp:O}",

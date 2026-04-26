@@ -1,8 +1,9 @@
-﻿// FIX 1: Namespace changed to Application layer (Clean Architecture)
+// FIX 1: Namespace changed to Application layer (Clean Architecture)
 // FIX 2: Resolved N+1 query by using the new repo method GetUserConversationsWithCharactersAsync
 // FIX 3: Structured history passed to AI with explicit roles (User vs Character Name)
 // FIX 4: Added try-catch and null check to handle DB persist failures gracefully.
 
+using Mapster;
 using PastPort.Application.DTOs.Request;
 using PastPort.Application.DTOs.Response;
 using PastPort.Application.Interfaces;
@@ -70,16 +71,9 @@ public class ConversationService : IConversationService
             throw new Exception("Failed to persist the conversation to the database.", ex);
         }
 
-        return new ConversationResponseDto
-        {
-            Id = conversation.Id,
-            UserId = conversation.UserId,
-            CharacterId = conversation.CharacterId,
-            CharacterName = character.Name,
-            UserMessage = conversation.UserMessage,
-            CharacterResponse = conversation.CharacterResponse,
-            CreatedAt = conversation.CreatedAt
-        };
+        var response = conversation.Adapt<ConversationResponseDto>();
+        response.CharacterName = character.Name;
+        return response;
     }
 
     public async Task<List<ConversationResponseDto>> GetUserConversationsAsync(string userId)
@@ -90,16 +84,11 @@ public class ConversationService : IConversationService
         if (conversations == null || !conversations.Any())
             return new List<ConversationResponseDto>();
 
-        return conversations.Select(conv => new ConversationResponseDto
+        return conversations.Select(conv => 
         {
-            Id = conv.Id,
-            UserId = conv.UserId,
-            CharacterId = conv.CharacterId,
-            // We assume Character navigation property was added to Conversation entity
-            CharacterName = conv.Character?.Name ?? "Unknown",
-            UserMessage = conv.UserMessage,
-            CharacterResponse = conv.CharacterResponse,
-            CreatedAt = conv.CreatedAt
+            var dto = conv.Adapt<ConversationResponseDto>();
+            dto.CharacterName = conv.Character?.Name ?? "Unknown";
+            return dto;
         }).ToList();
     }
 
@@ -116,15 +105,11 @@ public class ConversationService : IConversationService
         {
             CharacterId = characterId,
             CharacterName = character.Name,
-            Messages = conversations.Select(c => new ConversationResponseDto
+            Messages = conversations.Select(c => 
             {
-                Id = c.Id,
-                UserId = c.UserId,
-                CharacterId = c.CharacterId,
-                CharacterName = character.Name,
-                UserMessage = c.UserMessage,
-                CharacterResponse = c.CharacterResponse,
-                CreatedAt = c.CreatedAt
+                var dto = c.Adapt<ConversationResponseDto>();
+                dto.CharacterName = character.Name;
+                return dto;
             }).ToList()
         };
     }

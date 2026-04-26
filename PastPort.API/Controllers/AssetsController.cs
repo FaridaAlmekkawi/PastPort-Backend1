@@ -1,4 +1,4 @@
-﻿// ✅ FIXED: AssetsController.cs
+// ✅ FIXED: AssetsController.cs
 // المشاكل الأصلية:
 // 1. ComputeHash كانت بتستخدم MD5 — ده algorithm مكسور ومش آمن للـ integrity
 //    الحل: استبدلناه بـ SHA256
@@ -85,8 +85,8 @@ namespace PastPort.API.Controllers
                 if (asset == null)
                     return NotFound(new { error = "Asset not found" });
 
-                var fileBytes = await fileStorageService.GetFileAsync(asset.FileUrl);
-                return File(fileBytes, GetContentType(fileName), fileName);
+                var stream = await fileStorageService.GetFileStreamAsync(asset.FileUrl);
+                return File(stream, GetContentType(fileName), fileName);
             }
             catch (Exception ex)
             {
@@ -129,11 +129,12 @@ namespace PastPort.API.Controllers
                 var folder = GetFolderByType(assetType);
 
                 var fileUrl = await fileStorageService.UploadFileAsync(file, folder);
-                var fileBytes = await fileStorageService.GetFileAsync(fileUrl);
 
                 // ✅ FIXED: بنستخدم SHA256 بدل MD5
                 // MD5 مكسور cryptographically ومش مناسب لـ file integrity
-                var fileHash = ComputeHash(fileBytes);
+                // ✅ FIXED: بنستخدم Stream لعمل SHA256 عشان نقلل استهلاك الميموري
+                using var stream = file.OpenReadStream();
+                var fileHash = ComputeHash(stream);
 
                 var asset = new Asset
                 {
@@ -227,10 +228,11 @@ namespace PastPort.API.Controllers
         // MD5 يعمل collisions — يعني ملفين مختلفين ممكن يديوا نفس الـ hash
         // ده بيخلي الـ file integrity check مش موثوق فيه.
         // SHA256 هو الـ standard الحالي لـ file integrity verification.
-        private static string ComputeHash(byte[] fileBytes)
+        // ✅ FIXED: Stream بدل byte array عشان نوفر ميموري
+        private static string ComputeHash(Stream stream)
         {
             using var sha256 = System.Security.Cryptography.SHA256.Create();
-            var hash = sha256.ComputeHash(fileBytes);
+            var hash = sha256.ComputeHash(stream);
             return BitConverter.ToString(hash).Replace("-", "").ToLowerInvariant();
         }
     }

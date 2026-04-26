@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using PastPort.Domain.Entities;
 using PastPort.Domain.Enums;
@@ -93,7 +93,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
             // ✅ FIX 1 & 2: Explicitly map relationships for PaymentTransaction to prevent Shadow Properties (Like UserSubscriptionId1)
             e.HasOne(pt => pt.UserSubscription)
-             .WithMany() // Assuming UserSubscription doesn't have a list of transactions. If it does, use .WithMany(us => us.PaymentTransactions)
+             .WithMany(us => us.Transactions)
              .HasForeignKey(pt => pt.UserSubscriptionId)
              .OnDelete(DeleteBehavior.Restrict);
 
@@ -116,6 +116,21 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         builder.Entity<WebhookLog>(e =>
         {
             e.HasIndex(w => new { w.Gateway, w.GatewayEventId }).IsUnique();
+        });
+
+        builder.Entity<Payment>(e =>
+        {
+            e.Property(p => p.Amount).HasPrecision(18, 2);
+        });
+
+        builder.Entity<Refund>(e =>
+        {
+            e.Property(r => r.Amount).HasPrecision(18, 2);
+        });
+
+        builder.Entity<Subscription>(e =>
+        {
+            e.Property(s => s.Price).HasPrecision(18, 2);
         });
     }
 }

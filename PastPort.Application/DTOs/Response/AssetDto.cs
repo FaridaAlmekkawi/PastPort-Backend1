@@ -12,6 +12,7 @@ public class AssetDto
     public string FileHash { get; set; } = string.Empty;
     public string Version { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
+    public Guid? SceneId { get; set; }
 }
 
 public class AssetCheckRequestDto

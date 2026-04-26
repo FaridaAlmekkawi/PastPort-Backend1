@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;          // ← ToListAsync
+using Microsoft.EntityFrameworkCore;          // ← ToListAsync
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using PastPort.Application.Common;
@@ -6,6 +6,7 @@ using PastPort.Application.DTOs;
 using PastPort.Application.DTOs.Request;
 using PastPort.Application.DTOs.Response;     // ← PaymentStatus
 using PastPort.Infrastructure.Data;
+using Mapster;
 
 
 namespace PastPort.Infrastructure.ExternalServices.Payment;
@@ -49,11 +50,7 @@ public class PayPalService : IPaymentService
             .OrderByDescending(t => t.CreatedAt)
             .ToListAsync(ct);
 
-        return txs.Select(t => new TransactionDto(
-            t.Id, t.Amount, t.Currency,
-            t.Status, t.Gateway,
-            t.GatewayTransactionId, t.FailureReason,
-            t.CreatedAt, t.ProcessedAt));
+        return txs.Select(t => t.Adapt<TransactionDto>());
     }
 
     public async Task<IEnumerable<InvoiceDto>> GetInvoicesAsync(
@@ -64,11 +61,7 @@ public class PayPalService : IPaymentService
             .OrderByDescending(i => i.IssuedAt)
             .ToListAsync(ct);
 
-        return invoices.Select(i => new InvoiceDto(
-            i.Id, i.InvoiceNumber,
-            i.SubTotal, i.TaxAmount, i.DiscountAmount, i.TotalAmount,
-            i.Currency, i.Status,
-            i.IssuedAt, i.PaidAt, i.PdfUrl));
+        return invoices.Select(i => i.Adapt<InvoiceDto>());
     }
 
     public Task<PayPalPaymentResponseDto> CreateOrderAsync(

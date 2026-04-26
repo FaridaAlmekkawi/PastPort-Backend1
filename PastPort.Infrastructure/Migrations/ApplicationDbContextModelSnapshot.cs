@@ -607,6 +607,7 @@ namespace PastPort.Infrastructure.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTime>("CreatedAt")
@@ -701,9 +702,6 @@ namespace PastPort.Infrastructure.Migrations
                     b.Property<Guid>("UserSubscriptionId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid?>("UserSubscriptionId1")
-                        .HasColumnType("uniqueidentifier");
-
                     b.HasKey("Id");
 
                     b.HasIndex("GatewayTransactionId");
@@ -714,8 +712,6 @@ namespace PastPort.Infrastructure.Migrations
                     b.HasIndex("UserId");
 
                     b.HasIndex("UserSubscriptionId");
-
-                    b.HasIndex("UserSubscriptionId1");
 
                     b.ToTable("PaymentTransactions");
                 });
@@ -847,6 +843,7 @@ namespace PastPort.Infrastructure.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("Notes")
@@ -927,6 +924,7 @@ namespace PastPort.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.Property<decimal>("Price")
+                        .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTime>("StartDate")
@@ -1203,14 +1201,10 @@ namespace PastPort.Infrastructure.Migrations
                         .IsRequired();
 
                     b.HasOne("PastPort.Domain.Entities.UserSubscription", "UserSubscription")
-                        .WithMany()
+                        .WithMany("Transactions")
                         .HasForeignKey("UserSubscriptionId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.HasOne("PastPort.Domain.Entities.UserSubscription", null)
-                        .WithMany("Transactions")
-                        .HasForeignKey("UserSubscriptionId1");
 
                     b.Navigation("User");
 

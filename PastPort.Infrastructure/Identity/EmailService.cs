@@ -20,8 +20,7 @@ public class EmailService : IEmailService
         _configuration = configuration;
 
         // Check if email sending is enabled
-        _enableEmailSending = !string.IsNullOrEmpty(_configuration["EmailSettings:SmtpUsername"]) &&
-                             !string.IsNullOrEmpty(_configuration["EmailSettings:SmtpPassword"]);
+        _enableEmailSending = false;
     }
 
     public async Task SendVerificationEmailAsync(string email, string code)

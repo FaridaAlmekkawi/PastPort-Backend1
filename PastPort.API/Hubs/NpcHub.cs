@@ -1,8 +1,8 @@
-﻿// PastPort.API/Hubs/NpcHub.cs
+// PastPort.API/Hubs/NpcHub.cs
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.Extensions.Caching.Memory;
 using PastPort.Application.Interfaces;
+
 using PastPort.Application.Models.Npc;
 using PastPort.API.Controllers; // for BuildCacheKey
 
@@ -19,7 +19,7 @@ namespace PastPort.API.Hubs;
 [Authorize]
 public sealed class NpcHub(
     INpcAIService aiService,
-    IMemoryCache cache,
+    ICacheService cache,
     ILogger<NpcHub> logger)
     : Hub
 {
@@ -61,7 +61,7 @@ public sealed class NpcHub(
     public async Task StartConversation(
         string sessionId,
         string roleOrName,
-        byte[]? audioBytes)
+        IAsyncEnumerable<byte[]> audioStream)
     {
         // ── Guard: session must exist in cache ─────────────────────────────
         var cacheKey = NpcSessionController.BuildCacheKey(sessionId);
@@ -78,17 +78,27 @@ public sealed class NpcHub(
             return;
         }
 
-        // ── Guard: audio size ──────────────────────────────────────────────
-        if (audioBytes is null || audioBytes.Length == 0)
+        // ── Guard: audio size & collect stream ─────────────────────────────
+        using var ms = new MemoryStream();
+        if (audioStream != null)
         {
-            await Clients.Caller.SendAsync("OnSessionError", "Audio payload is empty.");
-            return;
+            await foreach (var chunk in audioStream)
+            {
+                if (ms.Length + chunk.Length > MaxAudioBytes)
+                {
+                    await Clients.Caller.SendAsync("OnSessionError",
+                        $"Audio payload exceeds the {MaxAudioBytes / 1024 / 1024} MB limit.");
+                    return;
+                }
+                await ms.WriteAsync(chunk);
+            }
         }
 
-        if (audioBytes.Length > MaxAudioBytes)
+        var audioBytes = ms.ToArray();
+
+        if (audioBytes.Length == 0)
         {
-            await Clients.Caller.SendAsync("OnSessionError",
-                $"Audio payload exceeds the {MaxAudioBytes / 1024 / 1024} MB limit.");
+            await Clients.Caller.SendAsync("OnSessionError", "Audio payload is empty.");
             return;
         }
 

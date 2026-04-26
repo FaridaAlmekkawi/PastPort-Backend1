@@ -1,9 +1,10 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using PastPort.Domain.Entities;
 using PastPort.Domain.Enums;
 using PastPort.Application.DTOs;
 using PastPort.Infrastructure.Data;
+using Mapster;
 
 
 
@@ -124,9 +125,7 @@ namespace PastPort.Infrastructure.Identity
                 .OrderByDescending(t => t.CreatedAt)
                 .ToListAsync(ct);
 
-            return txs.Select(t => new TransactionDto(
-                t.Id, t.Amount, t.Currency, t.Status, t.Gateway,
-                t.GatewayTransactionId, t.FailureReason, t.CreatedAt, t.ProcessedAt));
+            return txs.Select(t => t.Adapt<TransactionDto>());
         }
 
         public async Task<IEnumerable<InvoiceDto>> GetInvoicesAsync(
@@ -137,10 +136,7 @@ namespace PastPort.Infrastructure.Identity
                 .OrderByDescending(i => i.IssuedAt)
                 .ToListAsync(ct);
 
-            return invoices.Select(i => new InvoiceDto(
-                i.Id, i.InvoiceNumber, i.SubTotal, i.TaxAmount,
-                i.DiscountAmount, i.TotalAmount, i.Currency, i.Status,
-                i.IssuedAt, i.PaidAt, i.PdfUrl));
+            return invoices.Select(i => i.Adapt<InvoiceDto>());
         }
 
         // ... بقية الدوال (GetTransactionHistoryAsync و GetInvoicesAsync) تظل كما هي مع تغيير _db ...
