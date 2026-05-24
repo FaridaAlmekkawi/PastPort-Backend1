@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -238,6 +238,7 @@ public class AuthService : IAuthService
         return await SendVerificationCodeAsync(user.Id);
     }
 
+    // ─── Modified Method ───────────────────────────────────────────────────
     public async Task<ApiResponseDto> ForgotPasswordAsync(ForgotPasswordRequestDto request)
     {
         var user = await _userManager.FindByEmailAsync(request.Email);
@@ -262,7 +263,13 @@ public class AuthService : IAuthService
         await _context.SaveChangesAsync();
         await _emailService.SendPasswordResetEmailAsync(user.Email!, code);
 
-        return new ApiResponseDto { Success = true, Message = "Password reset code sent to your email" };
+        // ✅ FIXED: الكود لسه بيتبعت للميل، بس دلوقتي ضيفناه في الـ Data عشان الـ Swagger والـ Flutter يقرأوه فوراً
+        return new ApiResponseDto
+        {
+            Success = true,
+            Message = "Password reset code sent to your email",
+            Data = new { code = code }
+        };
     }
 
     public async Task<ApiResponseDto> VerifyResetCodeAsync(VerifyResetCodeRequestDto request)
