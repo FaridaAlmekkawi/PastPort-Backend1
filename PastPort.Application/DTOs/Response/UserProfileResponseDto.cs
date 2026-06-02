@@ -11,4 +11,10 @@ public class UserProfileResponseDto
     public DateTime CreatedAt { get; set; }
     public DateTime? LastLoginAt { get; set; }
     public List<string> Roles { get; set; } = new();
+    public string? ProfileImageUrl { get; set; }
+    public bool CameraEnabled { get; set; }
+
+    public bool LocationEnabled { get; set; }
+
+    public bool MicrophoneEnabled { get; set; }
 }

@@ -35,9 +35,13 @@ public class UserService : IUserService
             FirstName = user.FirstName,
             LastName = user.LastName,
             PhoneNumber = user.PhoneNumber,
+            ProfileImageUrl = user.ProfileImageUrl,
             IsEmailVerified = user.IsEmailVerified,
             CreatedAt = user.CreatedAt,
             LastLoginAt = user.LastLoginAt,
+            CameraEnabled = user.CameraEnabled,
+            LocationEnabled = user.LocationEnabled,
+            MicrophoneEnabled = user.MicrophoneEnabled,
             Roles = roles.ToList()
         };
     }
@@ -54,10 +58,16 @@ public class UserService : IUserService
             };
         }
 
+       
         user.FirstName = request.FirstName;
         user.LastName = request.LastName;
         user.PhoneNumber = request.PhoneNumber;
 
+        user.ProfileImageUrl = request.ProfileImageUrl;
+
+        user.CameraEnabled = request.CameraEnabled;
+        user.LocationEnabled = request.LocationEnabled;
+        user.MicrophoneEnabled = request.MicrophoneEnabled;
         var result = await _userManager.UpdateAsync(user);
 
         if (!result.Succeeded)

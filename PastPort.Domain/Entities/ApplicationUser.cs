@@ -34,4 +34,12 @@ public class ApplicationUser : IdentityUser
 
     /// <summary>Gets or sets the collection of NPC conversations this user has participated in.</summary>
     public ICollection<Conversation> Conversations { get; set; } = new List<Conversation>();
+
+    public string? ProfileImageUrl { get; set; }
+
+    public bool CameraEnabled { get; set; } = true;
+
+    public bool LocationEnabled { get; set; } = false;
+
+    public bool MicrophoneEnabled { get; set; } = true;
 }
