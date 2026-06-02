@@ -82,7 +82,7 @@ public class UsersController(
         });
     }
 
-    // FIX 3: Helper method to standardize validation error responses
+   
     private IActionResult ValidationError() =>
         BadRequest(new
         {
@@ -94,4 +94,36 @@ public class UsersController(
                     kvp => kvp.Key,
                     kvp => kvp.Value!.Errors.Select(e => e.ErrorMessage))
         });
+
+    [HttpPost("profile/photo")]
+    public async Task<IActionResult> UploadProfilePhoto(
+    IFormFile file,
+    [FromServices] IFileStorageService fileStorageService)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized();
+
+        if (file == null)
+            return BadRequest(new { message = "File is required" });
+
+        var imageUrl =
+            await fileStorageService.UploadFileAsync(file, "avatars");
+
+        var user = await userManager.FindByIdAsync(userId);
+
+        if (user == null)
+            return NotFound();
+
+        user.ProfileImageUrl = imageUrl;
+
+        await userManager.UpdateAsync(user);
+
+        return Ok(new
+        {
+            success = true,
+            profileImageUrl = imageUrl
+        });
+    }
 }
