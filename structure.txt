@@ -1,0 +1,335 @@
+Folder PATH listing
+Volume serial number is 4828-AFC0
+C:.
++---.github
+|   \---workflows
++---docs
+|   \---assets
++---PastPort.API
+|   +---.config
+|   +---bin
+|   |   +---Debug
+|   |   |   \---net9.0
+|   |   |       +---cs
+|   |   |       +---de
+|   |   |       +---es
+|   |   |       +---fr
+|   |   |       +---it
+|   |   |       +---ja
+|   |   |       +---ko
+|   |   |       +---pl
+|   |   |       +---pt-BR
+|   |   |       +---ru
+|   |   |       +---runtimes
+|   |   |       |   +---browser
+|   |   |       |   |   \---lib
+|   |   |       |   |       \---net8.0
+|   |   |       |   +---unix
+|   |   |       |   |   \---lib
+|   |   |       |   |       \---net6.0
+|   |   |       |   +---win
+|   |   |       |   |   \---lib
+|   |   |       |   |       +---net6.0
+|   |   |       |   |       \---net9.0
+|   |   |       |   +---win-arm
+|   |   |       |   |   \---native
+|   |   |       |   +---win-arm64
+|   |   |       |   |   \---native
+|   |   |       |   +---win-x64
+|   |   |       |   |   \---native
+|   |   |       |   \---win-x86
+|   |   |       |       \---native
+|   |   |       +---tr
+|   |   |       +---zh-Hans
+|   |   |       \---zh-Hant
+|   |   \---Release
+|   |       +---net10.0
+|   |       \---net9.0
+|   |           +---cs
+|   |           +---de
+|   |           +---es
+|   |           +---fr
+|   |           +---it
+|   |           +---ja
+|   |           +---ko
+|   |           +---pl
+|   |           +---pt-BR
+|   |           +---ru
+|   |           +---runtimes
+|   |           |   +---browser
+|   |           |   |   \---lib
+|   |           |   |       \---net8.0
+|   |           |   +---unix
+|   |           |   |   \---lib
+|   |           |   |       \---net6.0
+|   |           |   +---win
+|   |           |   |   \---lib
+|   |           |   |       +---net6.0
+|   |           |   |       \---net9.0
+|   |           |   +---win-arm
+|   |           |   |   \---native
+|   |           |   +---win-arm64
+|   |           |   |   \---native
+|   |           |   +---win-x64
+|   |           |   |   \---native
+|   |           |   \---win-x86
+|   |           |       \---native
+|   |           +---tr
+|   |           +---win-x86
+|   |           |   +---cs
+|   |           |   +---de
+|   |           |   +---es
+|   |           |   +---fr
+|   |           |   +---it
+|   |           |   +---ja
+|   |           |   +---ko
+|   |           |   +---pl
+|   |           |   +---pt-BR
+|   |           |   +---ru
+|   |           |   +---tr
+|   |           |   +---zh-Hans
+|   |           |   \---zh-Hant
+|   |           +---zh-Hans
+|   |           \---zh-Hant
+|   +---Controllers
+|   +---Extensions
+|   +---Filters
+|   +---Hubs
+|   +---logs
+|   +---Middlewares
+|   +---obj
+|   |   +---Debug
+|   |   |   \---net9.0
+|   |   |       +---ref
+|   |   |       +---refint
+|   |   |       \---staticwebassets
+|   |   +---publish
+|   |   |   \---win-x86
+|   |   \---Release
+|   |       +---net10.0
+|   |       |   +---ref
+|   |       |   \---refint
+|   |       \---net9.0
+|   |           +---EndpointInfo
+|   |           +---PubTmp
+|   |           |   \---Out
+|   |           |       +---runtimes
+|   |           |       |   +---browser
+|   |           |       |   |   \---lib
+|   |           |       |   |       \---net8.0
+|   |           |       |   +---unix
+|   |           |       |   |   \---lib
+|   |           |       |   |       \---net6.0
+|   |           |       |   +---win
+|   |           |       |   |   \---lib
+|   |           |       |   |       +---net6.0
+|   |           |       |   |       \---net9.0
+|   |           |       |   +---win-arm
+|   |           |       |   |   \---native
+|   |           |       |   +---win-arm64
+|   |           |       |   |   \---native
+|   |           |       |   +---win-x64
+|   |           |       |   |   \---native
+|   |           |       |   \---win-x86
+|   |           |       |       \---native
+|   |           |       \---wwwroot
+|   |           |           \---uploads
+|   |           |               \---assets
+|   |           +---ref
+|   |           +---refint
+|   |           +---staticwebassets
+|   |           \---win-x86
+|   |               +---PubTmp
+|   |               |   \---Out
+|   |               |       \---wwwroot
+|   |               |           \---uploads
+|   |               |               \---assets
+|   |               +---ref
+|   |               +---refint
+|   |               \---staticwebassets
+|   +---Properties
+|   |   \---PublishProfiles
+|   +---WebSockets
+|   \---wwwroot
+|       +---assets
+|       \---uploads
+|           \---assets
++---PastPort.Application
+|   +---bin
+|   |   +---Debug
+|   |   |   \---net9.0
+|   |   \---Release
+|   |       +---net10.0
+|   |       \---net9.0
+|   +---Common
+|   |   \---Mappings
+|   +---DTOs
+|   |   +---Request
+|   |   \---Response
+|   +---Interfaces
+|   +---Models
+|   |   \---Npc
+|   \---obj
+|       +---Debug
+|       |   \---net9.0
+|       |       +---ref
+|       |       \---refint
+|       \---Release
+|           +---net10.0
+|           |   +---ref
+|           |   \---refint
+|           \---net9.0
+|               +---ref
+|               \---refint
++---PastPort.Domain
+|   +---bin
+|   |   +---Debug
+|   |   |   \---net9.0
+|   |   \---Release
+|   |       +---net10.0
+|   |       \---net9.0
+|   +---Constants
+|   +---Entities
+|   +---Enums
+|   +---Exceptions
+|   +---Interfaces
+|   \---obj
+|       +---Debug
+|       |   \---net9.0
+|       |       +---ref
+|       |       \---refint
+|       \---Release
+|           +---net10.0
+|           |   +---ref
+|           |   \---refint
+|           \---net9.0
+|               +---ref
+|               \---refint
++---PastPort.Infrastructure
+|   +---bin
+|   |   +---Debug
+|   |   |   \---net9.0
+|   |   \---Release
+|   |       +---net10.0
+|   |       \---net9.0
+|   +---Data
+|   |   \---Repositories
+|   +---ExternalServices
+|   |   +---AI
+|   |   +---Email
+|   |   +---Payment
+|   |   \---Storage
+|   +---Identity
+|   +---Migrations
+|   +---obj
+|   |   +---Debug
+|   |   |   \---net9.0
+|   |   |       +---ref
+|   |   |       \---refint
+|   |   \---Release
+|   |       +---net10.0
+|   |       |   +---ref
+|   |       |   \---refint
+|   |       \---net9.0
+|   |           +---ref
+|   |           \---refint
+|   \---Services
++---PastPort.LoadTests
+|   +---bin
+|   |   \---Release
+|   |       \---net9.0
+|   +---Clients
+|   +---obj
+|   |   \---Release
+|   |       \---net9.0
+|   |           +---ref
+|   |           \---refint
+|   \---Scenarios
+\---PastPort.Tests
+    +---bin
+    |   +---Debug
+    |   |   \---net9.0
+    |   |       +---cs
+    |   |       +---de
+    |   |       +---es
+    |   |       +---fr
+    |   |       +---it
+    |   |       +---ja
+    |   |       +---ko
+    |   |       +---pl
+    |   |       +---pt-BR
+    |   |       +---ru
+    |   |       +---runtimes
+    |   |       |   +---browser
+    |   |       |   |   \---lib
+    |   |       |   |       \---net8.0
+    |   |       |   +---unix
+    |   |       |   |   \---lib
+    |   |       |   |       \---net6.0
+    |   |       |   +---win
+    |   |       |   |   \---lib
+    |   |       |   |       +---net6.0
+    |   |       |   |       \---net9.0
+    |   |       |   +---win-arm
+    |   |       |   |   \---native
+    |   |       |   +---win-arm64
+    |   |       |   |   \---native
+    |   |       |   +---win-x64
+    |   |       |   |   \---native
+    |   |       |   \---win-x86
+    |   |       |       \---native
+    |   |       +---tr
+    |   |       +---zh-Hans
+    |   |       \---zh-Hant
+    |   \---Release
+    |       +---net10.0
+    |       \---net9.0
+    |           +---cs
+    |           +---de
+    |           +---es
+    |           +---fr
+    |           +---it
+    |           +---ja
+    |           +---ko
+    |           +---pl
+    |           +---pt-BR
+    |           +---ru
+    |           +---runtimes
+    |           |   +---browser
+    |           |   |   \---lib
+    |           |   |       \---net8.0
+    |           |   +---unix
+    |           |   |   \---lib
+    |           |   |       \---net6.0
+    |           |   +---win
+    |           |   |   \---lib
+    |           |   |       +---net6.0
+    |           |   |       \---net9.0
+    |           |   +---win-arm
+    |           |   |   \---native
+    |           |   +---win-arm64
+    |           |   |   \---native
+    |           |   +---win-x64
+    |           |   |   \---native
+    |           |   \---win-x86
+    |           |       \---native
+    |           +---tr
+    |           +---zh-Hans
+    |           \---zh-Hant
+    +---Controllers
+    +---Hubs
+    +---Integration
+    +---Models
+    +---obj
+    |   +---Debug
+    |   |   \---net9.0
+    |   |       +---ref
+    |   |       \---refint
+    |   \---Release
+    |       +---net10.0
+    |       |   +---ref
+    |       |   \---refint
+    |       \---net9.0
+    |           +---ref
+    |           \---refint
+    \---Services

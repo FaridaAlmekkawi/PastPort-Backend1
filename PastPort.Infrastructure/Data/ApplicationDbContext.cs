@@ -42,16 +42,16 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         builder.Entity<Asset>()
             .HasIndex(a => a.FileName);
 
-        // ✅ FIX 4 (From JwtTokenService): Add unique index for RefreshToken to prevent Table Scans
+        
         builder.Entity<RefreshToken>()
             .HasIndex(rt => rt.Token)
             .IsUnique();
 
-        // ✅ FIX 3: Add missing indexes for Conversations to optimize queries
+        
         builder.Entity<Conversation>(e =>
         {
             e.HasIndex(c => c.CharacterId);
-            e.HasIndex(c => new { c.UserId, c.CharacterId }); // Composite index for specific queries
+            e.HasIndex(c => new { c.UserId, c.CharacterId });
         });
 
         // 2. Plan & Features
@@ -78,7 +78,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             e.HasIndex(us => new { us.UserId, us.Status });
             e.HasOne(us => us.Plan).WithMany(p => p.UserSubscriptions).OnDelete(DeleteBehavior.Restrict);
 
-            // ✅ FIX 1 & 2: Explicitly mapping User relationship to prevent Shadow Properties
+        
             e.HasOne(us => us.User)
              .WithMany()
              .HasForeignKey(us => us.UserId)
@@ -91,7 +91,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             e.HasIndex(t => t.IdempotencyKey).IsUnique();
             e.Property(t => t.Amount).HasPrecision(18, 2);
 
-            // ✅ FIX 1 & 2: Explicitly map relationships for PaymentTransaction to prevent Shadow Properties (Like UserSubscriptionId1)
+           
             e.HasOne(pt => pt.UserSubscription)
              .WithMany(us => us.Transactions)
              .HasForeignKey(pt => pt.UserSubscriptionId)

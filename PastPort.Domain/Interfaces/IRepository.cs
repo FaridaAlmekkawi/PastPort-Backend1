@@ -38,9 +38,7 @@ public interface IRepository<T> where T : class
     /// <returns>The persisted entity (with generated ID).</returns>
     Task<T> AddAsync(T entity);
 
-    /// <summary>
-    /// Updates an existing entity in the database.
-    /// </summary>
+   
     /// <param name="entity">The entity with updated values.</param>
     Task UpdateAsync(T entity);
 
