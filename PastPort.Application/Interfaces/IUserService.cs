@@ -8,4 +8,5 @@ public interface IUserService
     Task<UserProfileResponseDto?> GetUserProfileAsync(string userId);
     Task<ApiResponseDto> UpdateUserProfileAsync(string userId, UpdateProfileRequestDto request);
     Task<ApiResponseDto> DeleteUserAccountAsync(string userId);
+    Task<ApiResponseDto> ChangePasswordAsync( string userId, ChangePasswordRequestDto request);
 }

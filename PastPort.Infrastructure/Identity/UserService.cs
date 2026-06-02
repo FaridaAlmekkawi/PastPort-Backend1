@@ -118,4 +118,46 @@ public class UserService : IUserService
             Message = "Account deleted successfully"
         };
     }
+
+    public async Task<ApiResponseDto> ChangePasswordAsync(
+    string userId,
+    ChangePasswordRequestDto request)
+    {
+        var user = await _userManager.FindByIdAsync(userId);
+
+        if (user == null)
+            return new ApiResponseDto
+            {
+                Success = false,
+                Message = "User not found"
+            };
+
+        if (request.NewPassword != request.ConfirmPassword)
+            return new ApiResponseDto
+            {
+                Success = false,
+                Message = "Passwords do not match"
+            };
+
+        var result = await _userManager.ChangePasswordAsync(
+            user,
+            request.CurrentPassword,
+            request.NewPassword);
+
+        if (!result.Succeeded)
+        {
+            return new ApiResponseDto
+            {
+                Success = false,
+                Message = string.Join(", ",
+                    result.Errors.Select(e => e.Description))
+            };
+        }
+
+        return new ApiResponseDto
+        {
+            Success = true,
+            Message = "Password changed successfully"
+        };
+    }
 }

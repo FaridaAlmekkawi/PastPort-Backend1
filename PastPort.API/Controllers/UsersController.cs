@@ -126,4 +126,22 @@ public class UsersController(
             profileImageUrl = imageUrl
         });
     }
+
+    [HttpPost("change-password")]
+    public async Task<IActionResult> ChangePassword(
+    [FromBody] ChangePasswordRequestDto request)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized();
+
+        var result =
+            await userService.ChangePasswordAsync(userId, request);
+
+        if (!result.Success)
+            return BadRequest(result);
+
+        return Ok(result);
+    }
 }
