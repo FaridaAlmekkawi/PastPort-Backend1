@@ -20,7 +20,7 @@ public class EmailService : IEmailService
         _configuration = configuration;
 
         // Check if email sending is enabled
-        _enableEmailSending = false;
+        _enableEmailSending = true;
     }
 
     public async Task SendVerificationEmailAsync(string email, string code)
