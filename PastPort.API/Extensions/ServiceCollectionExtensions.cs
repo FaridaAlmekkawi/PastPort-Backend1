@@ -22,6 +22,7 @@ using MapsterMapper;
 using Serilog;
 using System.Reflection;
 
+
 namespace PastPort.API.Extensions;
 
 public static class ServiceCollectionExtensions
@@ -135,6 +136,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPaymentService, PayPalService>();
         services.AddScoped<IFileStorageService, LocalFileStorageService>();
         services.AddScoped<IAIConversationService, MockAIConversationService>();
+        
         if (configuration.GetValue<bool>("NpcAI:UseMock"))
         {
             services.AddScoped<INpcAIService, MockNpcAIService>();
@@ -144,7 +146,13 @@ public static class ServiceCollectionExtensions
             services.AddScoped<INpcAIService, NpcAIService>();
         }
         services.AddSingleton<ICacheService, CacheService>();
+        services.Configure<VrGeneratorSettings>(
+        configuration.GetSection("VrGenerator"));
 
+        services.AddHttpClient<IVrEnvironmentService, VrEnvironmentService>(client =>
+        {
+            client.Timeout = TimeSpan.FromMinutes(8);
+        });
         // Settings
         services.Configure<EmailSettings>(configuration.GetSection("EmailSettings"));
         services.Configure<PayPalSettings>(configuration.GetSection("PayPal"));

@@ -40,7 +40,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .HasForeignKey(c => c.SceneId);
 
         builder.Entity<Asset>()
-            .HasIndex(a => a.FileName);
+            .HasIndex(a => a.SourcePromptHash);
 
         
         builder.Entity<RefreshToken>()

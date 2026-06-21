@@ -57,4 +57,11 @@ public class AssetRepository : Repository<Asset>, IAssetRepository
             .FirstOrDefaultAsync(a =>
                 a.Name.ToLower() == name.ToLower());
     }
+    public async Task<Asset?> GetAssetByPromptHashAsync(string promptHash)
+    {
+        return await _dbSet
+            .AsNoTracking()
+            .FirstOrDefaultAsync(a => a.SourcePromptHash == promptHash
+                && a.Status == AssetStatus.Available);
+    }
 }
