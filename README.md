@@ -318,7 +318,7 @@ Edit `appsettings.Development.json` with your local values:
     }
   },
   "NpcAI": {
-    "WebSocketUrl": "wss://your-ai-service.example.com/ws/npc",
+    "WebSocketUrl": "wss://gizmo-battering-moaning.ngrok-free.dev/ws/npc",
     "ReceiveBufferBytes": 65536,
     "ConversationTimeoutSeconds": 120
   },
@@ -469,7 +469,9 @@ sequenceDiagram
     Unity->>Hub: StartConversation(sessionId, role, audioStream)
     Hub->>Cache: Validate sessionId
     Cache-->>Hub: NpcSessionData
-    Hub->>AI: Open WebSocket + Send audio + world context
+    Hub->>AI: Open WebSocket
+    Hub->>AI: Send JSON world config
+    Hub->>AI: Send WAV audio bytes
     loop IAsyncEnumerable streaming
         AI-->>Hub: MetaChunk (text, emotion, year)
         Hub-->>Unity: OnMetaReceived(meta)

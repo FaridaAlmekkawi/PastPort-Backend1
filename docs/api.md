@@ -595,6 +595,14 @@ Begin a streaming NPC voice conversation.
 | `roleOrName`  | `string`                   | NPC character name or role to converse with     |
 | `audioStream` | `IAsyncEnumerable<byte[]>` | Streamed audio chunks from the client microphone |
 
+PastPort forwards each turn to the configured NPC Engine WebSocket (`NpcAI:WebSocketUrl`, usually `/ws/npc`) using the engine protocol:
+
+1. Text message: JSON config with `world.year_range`, `world.location_old_name`, `world.civilization`, and `world.role_or_name`.
+2. Binary message: raw WAV audio bytes.
+3. Responses in order: JSON `{ "type": "meta" }`, binary WAV audio, then JSON `{ "type": "done" }`.
+
+NPC Engine error frames such as `{ "type": "error", "reason": "transcription_failed" }` are relayed to Unity through `OnSessionError`.
+
 #### `EndSession(sessionId)`
 
 Terminate a session early.
@@ -607,7 +615,7 @@ Terminate a session early.
 
 | Event                 | Payload                              | Description                              |
 | --------------------- | ------------------------------------ | ---------------------------------------- |
-| `OnMetaReceived`      | `{ text, emotion, currentYear }`     | AI response metadata (text + emotion)    |
+| `OnMetaReceived`      | `{ text, emotion, currentYear }`     | AI response metadata (text + emotion + year) |
 | `OnAudioReceived`     | `byte[]`                             | Raw AI-generated audio data              |
 | `OnConversationDone`  | *(none)*                             | AI finished responding                   |
 | `OnSessionError`      | `string`                             | Error message (timeout, invalid session) |

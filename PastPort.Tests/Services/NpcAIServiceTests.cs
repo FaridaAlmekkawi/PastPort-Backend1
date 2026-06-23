@@ -38,7 +38,7 @@ public class NpcAIServiceTests
     [Fact]
     public void ParseTextFrame_WithMeta_ReturnsMetaChunk()
     {
-        var json = "{\"type\": \"meta\", \"text\": \"Hello\", \"emotion\": \"Happy\", \"current_year\": 2024}";
+        var json = "{\"type\": \"meta\", \"text\": \"Hello\", \"emotion\": \"Happy\", \"year\": 2024}";
         var data = Encoding.UTF8.GetBytes(json);
 
         var result = _sut.ParseTextFrame(data);
@@ -47,6 +47,30 @@ public class NpcAIServiceTests
         meta.Text.Should().Be("Hello");
         meta.Emotion.Should().Be("Happy");
         meta.CurrentYear.Should().Be(2024);
+    }
+
+    [Fact]
+    public void ParseTextFrame_WithLegacyCurrentYear_ReturnsMetaChunk()
+    {
+        var json = "{\"type\": \"meta\", \"text\": \"Hello\", \"emotion\": \"Happy\", \"current_year\": 2024}";
+        var data = Encoding.UTF8.GetBytes(json);
+
+        var result = _sut.ParseTextFrame(data);
+
+        result.Should().BeOfType<MetaChunk>()
+            .Which.CurrentYear.Should().Be(2024);
+    }
+
+    [Fact]
+    public void ParseTextFrame_WithError_ReturnsErrorChunk()
+    {
+        var json = "{\"type\": \"error\", \"reason\": \"transcription_failed\"}";
+        var data = Encoding.UTF8.GetBytes(json);
+
+        var result = _sut.ParseTextFrame(data);
+
+        result.Should().BeOfType<ErrorChunk>()
+            .Which.Reason.Should().Be("transcription_failed");
     }
 
     [Fact]
@@ -94,5 +118,16 @@ public class NpcAIServiceTests
 
         result.Should().BeOfType<ErrorChunk>()
             .Which.Reason.Should().Contain("Received null JSON frame");
+    }
+
+    [Theory]
+    [InlineData("300 BC - 30 BC", 300, 30)]
+    [InlineData("2550, 2580", 2550, 2580)]
+    [InlineData("1900", 1900, 1900)]
+    public void ParseYearRange_ExtractsEngineRange(string input, int start, int end)
+    {
+        var result = NpcAIService.ParseYearRange(input);
+
+        result.Should().Equal(start, end);
     }
 }

@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using PastPort.Application.Interfaces;
@@ -30,15 +31,14 @@ public sealed class NpcAISettings
 
 // ── Private DTOs (send / receive) ─────────────────────────────────────────────
 
-file sealed class LlmSendPayload
+file sealed class LlmConfigPayload
 {
-    [JsonPropertyName("audio")] public int[] Audio { get; init; } = [];
     [JsonPropertyName("world")] public LlmWorld World { get; init; } = new();
 }
 
 file sealed class LlmWorld
 {
-    [JsonPropertyName("year_range")] public string YearRange { get; init; } = "";
+    [JsonPropertyName("year_range")] public int[] YearRange { get; init; } = [];
     [JsonPropertyName("location_old_name")] public string LocationOldName { get; init; } = "";
     [JsonPropertyName("civilization")] public string Civilization { get; init; } = "";
     [JsonPropertyName("role_or_name")] public string RoleOrName { get; init; } = "";
@@ -49,7 +49,9 @@ file sealed class LlmTextFrame
     [JsonPropertyName("type")] public string Type { get; init; } = "";
     [JsonPropertyName("text")] public string? Text { get; init; }
     [JsonPropertyName("emotion")] public string? Emotion { get; init; }
-    [JsonPropertyName("current_year")] public int CurrentYear { get; init; }
+    [JsonPropertyName("year")] public int? Year { get; init; }
+    [JsonPropertyName("current_year")] public int? CurrentYear { get; init; }
+    [JsonPropertyName("reason")] public string? Reason { get; init; }
 }
 
 // ── Service ───────────────────────────────────────────────────────────────────
@@ -117,12 +119,11 @@ public sealed class NpcAIService : INpcAIService
         // ── 2. Send payload ──────────────────────────────────────────────────────
         try
         {
-            var payload = new LlmSendPayload
+            var payload = new LlmConfigPayload
             {
-                Audio = audioBytes.Select(b => (int)(sbyte)b).ToArray(),
                 World = new LlmWorld
                 {
-                    YearRange = sessionData.YearRange,
+                    YearRange = ParseYearRange(sessionData.YearRange),
                     LocationOldName = sessionData.LocationOldName,
                     Civilization = sessionData.Civilization,
                     RoleOrName = roleOrName
@@ -138,8 +139,14 @@ public sealed class NpcAIService : INpcAIService
                 endOfMessage: true,
                 cancellationToken: token);
 
+            await ws.SendAsync(
+                audioBytes.AsMemory(),
+                WebSocketMessageType.Binary,
+                endOfMessage: true,
+                cancellationToken: token);
+
             _logger.LogDebug(
-                "NPC WS sent payload: audio={Bytes} bytes", audioBytes.Length);
+                "NPC WS sent config and audio={Bytes} bytes", audioBytes.Length);
         }
         catch (Exception ex) when (!token.IsCancellationRequested)
         {
@@ -241,7 +248,9 @@ public sealed class NpcAIService : INpcAIService
                 "meta" => new MetaChunk(
                     Text: frame.Text ?? string.Empty,
                     Emotion: frame.Emotion ?? string.Empty,
-                    CurrentYear: frame.CurrentYear),
+                    CurrentYear: frame.Year ?? frame.CurrentYear ?? 0),
+
+                "error" => new ErrorChunk(frame.Reason ?? "LLM returned an error."),
 
                 "done" => new DoneChunk(),
 
@@ -256,6 +265,18 @@ public sealed class NpcAIService : INpcAIService
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    internal static int[] ParseYearRange(string yearRange)
+    {
+        var matches = Regex.Matches(yearRange, @"\d+");
+
+        return matches.Count switch
+        {
+            0 => [0, 0],
+            1 => [int.Parse(matches[0].Value), int.Parse(matches[0].Value)],
+            _ => [int.Parse(matches[0].Value), int.Parse(matches[1].Value)]
+        };
+    }
 
     private async Task CloseWebSocketAsync(ClientWebSocket ws)
     {
