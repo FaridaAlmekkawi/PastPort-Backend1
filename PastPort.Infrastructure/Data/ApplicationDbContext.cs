@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using PastPort.Domain.Entities;
 using PastPort.Domain.Enums;
@@ -17,6 +17,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<EmailVerificationCode> EmailVerificationCodes => Set<EmailVerificationCode>();
     public DbSet<PasswordResetToken> PasswordResetTokens => Set<PasswordResetToken>();
     public DbSet<Asset> Assets => Set<Asset>();
+
+    // ✅ Fixed
+    public DbSet<SceneCache> SceneCaches => Set<SceneCache>();
+    public DbSet<VrSession> VrSessions => Set<VrSession>();
 
     // --- New Payment & Subscription DbSets ---
     public DbSet<Plan> Plans => Set<Plan>();
@@ -42,12 +46,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         builder.Entity<Asset>()
             .HasIndex(a => a.SourcePromptHash);
 
-        
         builder.Entity<RefreshToken>()
             .HasIndex(rt => rt.Token)
             .IsUnique();
 
-        
         builder.Entity<Conversation>(e =>
         {
             e.HasIndex(c => c.CharacterId);
@@ -69,48 +71,55 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         builder.Entity<PlanFeature>(e =>
         {
             e.HasIndex(pf => new { pf.PlanId, pf.FeatureId }).IsUnique();
-            e.HasOne(pf => pf.Plan).WithMany(p => p.PlanFeatures).HasForeignKey(pf => pf.PlanId);
+
+            e.HasOne(pf => pf.Plan)
+                .WithMany(p => p.PlanFeatures)
+                .HasForeignKey(pf => pf.PlanId);
         });
 
         // 3. Subscriptions & Transactions
         builder.Entity<UserSubscription>(e =>
         {
             e.HasIndex(us => new { us.UserId, us.Status });
-            e.HasOne(us => us.Plan).WithMany(p => p.UserSubscriptions).OnDelete(DeleteBehavior.Restrict);
 
-        
+            e.HasOne(us => us.Plan)
+                .WithMany(p => p.UserSubscriptions)
+                .OnDelete(DeleteBehavior.Restrict);
+
             e.HasOne(us => us.User)
-             .WithMany()
-             .HasForeignKey(us => us.UserId)
-             .OnDelete(DeleteBehavior.Cascade);
+                .WithMany()
+                .HasForeignKey(us => us.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<PaymentTransaction>(e =>
         {
             e.HasIndex(t => t.GatewayTransactionId);
             e.HasIndex(t => t.IdempotencyKey).IsUnique();
+
             e.Property(t => t.Amount).HasPrecision(18, 2);
 
-           
             e.HasOne(pt => pt.UserSubscription)
-             .WithMany(us => us.Transactions)
-             .HasForeignKey(pt => pt.UserSubscriptionId)
-             .OnDelete(DeleteBehavior.Restrict);
+                .WithMany(us => us.Transactions)
+                .HasForeignKey(pt => pt.UserSubscriptionId)
+                .OnDelete(DeleteBehavior.Restrict);
 
             e.HasOne(pt => pt.User)
-             .WithMany()
-             .HasForeignKey(pt => pt.UserId)
-             .OnDelete(DeleteBehavior.Restrict);
+                .WithMany()
+                .HasForeignKey(pt => pt.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         builder.Entity<Invoice>(e =>
         {
             e.HasIndex(i => i.InvoiceNumber).IsUnique();
-            e.Property(i => i.TotalAmount).HasPrecision(18, 2);
-            e.Property(i => i.SubTotal).HasPrecision(18, 2); // Explicit precision for SubTotal
 
-            e.HasOne(i => i.PaymentTransaction).WithOne(t => t.Invoice)
-             .HasForeignKey<Invoice>(i => i.PaymentTransactionId);
+            e.Property(i => i.TotalAmount).HasPrecision(18, 2);
+            e.Property(i => i.SubTotal).HasPrecision(18, 2);
+
+            e.HasOne(i => i.PaymentTransaction)
+                .WithOne(t => t.Invoice)
+                .HasForeignKey<Invoice>(i => i.PaymentTransactionId);
         });
 
         builder.Entity<WebhookLog>(e =>

@@ -123,6 +123,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISubscriptionRepository, SubscriptionRepository>();
         services.AddScoped<IAssetRepository, AssetRepository>();
         services.AddScoped<IPaymentRepository, PaymentRepository>();
+        services.AddScoped<ISceneCacheRepository, SceneCacheRepository>();
 
         // Services
         services.AddScoped<IJwtTokenService, JwtTokenService>();
