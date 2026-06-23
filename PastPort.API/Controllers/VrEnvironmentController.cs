@@ -7,7 +7,7 @@ using PastPort.Domain.Interfaces;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-
+using Microsoft.EntityFrameworkCore;
 namespace PastPort.API.Controllers;
 
 [Authorize]
