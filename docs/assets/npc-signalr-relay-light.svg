@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="520" viewBox="0 0 1180 520">
+  <rect width="1180" height="520" rx="18" fill="#f8fafc"/>
+  <rect x="28" y="28" width="1124" height="464" rx="14" fill="#ffffff" stroke="#d0d7de"/>
+  <rect x="28" y="28" width="1124" height="48" rx="14" fill="#f6f8fa"/>
+  <circle cx="58" cy="52" r="7" fill="#ff5f57"/>
+  <circle cx="82" cy="52" r="7" fill="#ffbd2e"/>
+  <circle cx="106" cy="52" r="7" fill="#28c840"/>
+  <text x="138" y="58" font-family="Consolas, 'Courier New', monospace" font-size="16" fill="#57606a">NpcHub.cs - SignalR relay to Unity</text>
+  <g font-family="Consolas, 'Courier New', monospace" font-size="20">
+    <text x="58" y="116" fill="#6e7781">01</text><text x="104" y="116" fill="#cf222e">switch</text><text x="184" y="116" fill="#24292f"> (chunk)</text>
+    <text x="58" y="146" fill="#6e7781">02</text><text x="104" y="146" fill="#24292f">{</text>
+    <text x="58" y="176" fill="#6e7781">03</text><text x="134" y="176" fill="#cf222e">case</text><text x="194" y="176" fill="#24292f"> MetaChunk meta:</text>
+    <text x="58" y="206" fill="#6e7781">04</text><text x="164" y="206" fill="#8250df">await</text><text x="234" y="206" fill="#24292f"> Clients.Caller.SendAsync(</text><text x="524" y="206" fill="#0a3069">"OnMetaReceived"</text><text x="724" y="206" fill="#24292f">, meta, ct);</text>
+    <text x="58" y="236" fill="#6e7781">05</text><text x="164" y="236" fill="#cf222e">break</text><text x="234" y="236" fill="#24292f">;</text>
+    <text x="58" y="276" fill="#6e7781">06</text><text x="134" y="276" fill="#cf222e">case</text><text x="194" y="276" fill="#24292f"> AudioChunk audio:</text>
+    <text x="58" y="306" fill="#6e7781">07</text><text x="164" y="306" fill="#8250df">await</text><text x="234" y="306" fill="#24292f"> Clients.Caller.SendAsync(</text><text x="524" y="306" fill="#0a3069">"OnAudioReceived"</text><text x="736" y="306" fill="#24292f">, audio.Bytes, ct);</text>
+    <text x="58" y="336" fill="#6e7781">08</text><text x="164" y="336" fill="#cf222e">break</text><text x="234" y="336" fill="#24292f">;</text>
+    <text x="58" y="376" fill="#6e7781">09</text><text x="134" y="376" fill="#cf222e">case</text><text x="194" y="376" fill="#24292f"> DoneChunk:</text>
+    <text x="58" y="406" fill="#6e7781">10</text><text x="164" y="406" fill="#8250df">await</text><text x="234" y="406" fill="#24292f"> Clients.Caller.SendAsync(</text><text x="524" y="406" fill="#0a3069">"OnConversationDone"</text><text x="772" y="406" fill="#24292f">, ct);</text>
+    <text x="58" y="446" fill="#6e7781">11</text><text x="104" y="446" fill="#24292f">}</text>
+  </g>
+</svg>

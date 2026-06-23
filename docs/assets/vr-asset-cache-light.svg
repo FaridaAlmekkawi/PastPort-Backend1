@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="620" viewBox="0 0 1180 620">
+  <rect width="1180" height="620" rx="18" fill="#f8fafc"/>
+  <rect x="28" y="28" width="1124" height="564" rx="14" fill="#ffffff" stroke="#d0d7de"/>
+  <rect x="28" y="28" width="1124" height="48" rx="14" fill="#f6f8fa"/>
+  <circle cx="58" cy="52" r="7" fill="#ff5f57"/>
+  <circle cx="82" cy="52" r="7" fill="#ffbd2e"/>
+  <circle cx="106" cy="52" r="7" fill="#28c840"/>
+  <text x="138" y="58" font-family="Consolas, 'Courier New', monospace" font-size="16" fill="#57606a">VrEnvironmentController.cs - generated GLB asset cache</text>
+  <g font-family="Consolas, 'Courier New', monospace" font-size="20">
+    <text x="58" y="116" fill="#6e7781">01</text><text x="104" y="116" fill="#cf222e">var</text><text x="144" y="116" fill="#24292f"> promptHash = ComputeHash(prompt);</text>
+    <text x="58" y="156" fill="#6e7781">02</text><text x="104" y="156" fill="#cf222e">var</text><text x="144" y="156" fill="#24292f"> cached = </text><text x="260" y="156" fill="#8250df">await</text><text x="330" y="156" fill="#24292f"> _assetRepository.GetAssetByPromptHashAsync(promptHash);</text>
+    <text x="58" y="186" fill="#6e7781">03</text><text x="104" y="186" fill="#cf222e">if</text><text x="144" y="186" fill="#24292f"> (cached != </text><text x="284" y="186" fill="#0550ae">null</text><text x="334" y="186" fill="#24292f">)</text>
+    <text x="58" y="216" fill="#6e7781">04</text><text x="134" y="216" fill="#cf222e">return</text><text x="214" y="216" fill="#24292f"> Ok(</text><text x="264" y="216" fill="#0550ae">new</text><text x="314" y="216" fill="#24292f"> { success = </text><text x="478" y="216" fill="#0550ae">true</text><text x="532" y="216" fill="#24292f">, cached = </text><text x="660" y="216" fill="#0550ae">true</text><text x="714" y="216" fill="#24292f">, data = cached });</text>
+    <text x="58" y="256" fill="#6e7781">05</text><text x="104" y="256" fill="#cf222e">var</text><text x="144" y="256" fill="#24292f"> glbStream = </text><text x="284" y="256" fill="#8250df">await</text><text x="354" y="256" fill="#24292f"> _vrService.GenerateAssetAsync(prompt, isNpc, token);</text>
+    <text x="58" y="286" fill="#6e7781">06</text><text x="104" y="286" fill="#cf222e">var</text><text x="144" y="286" fill="#24292f"> fileName = $</text><text x="294" y="286" fill="#0a3069">"{promptHash}.glb"</text><text x="514" y="286" fill="#24292f">;</text>
+    <text x="58" y="316" fill="#6e7781">07</text><text x="104" y="316" fill="#cf222e">var</text><text x="144" y="316" fill="#24292f"> fileUrl = </text><text x="254" y="316" fill="#8250df">await</text><text x="324" y="316" fill="#24292f"> SaveGlbAsync(fileBytes, fileName);</text>
+    <text x="58" y="356" fill="#6e7781">08</text><text x="104" y="356" fill="#cf222e">var</text><text x="144" y="356" fill="#24292f"> asset = </text><text x="244" y="356" fill="#0550ae">new</text><text x="294" y="356" fill="#24292f"> Asset</text>
+    <text x="58" y="386" fill="#6e7781">09</text><text x="104" y="386" fill="#24292f">{</text>
+    <text x="58" y="416" fill="#6e7781">10</text><text x="134" y="416" fill="#24292f">Type = isNpc ? AssetType.Prefab : AssetType.Model3D,</text>
+    <text x="58" y="446" fill="#6e7781">11</text><text x="134" y="446" fill="#24292f">FileUrl = fileUrl, SourcePromptHash = promptHash,</text>
+    <text x="58" y="476" fill="#6e7781">12</text><text x="134" y="476" fill="#24292f">FileHash = ComputeHash(Convert.ToBase64String(fileBytes))</text>
+    <text x="58" y="506" fill="#6e7781">13</text><text x="104" y="506" fill="#24292f">};</text>
+    <text x="58" y="536" fill="#6e7781">14</text><text x="104" y="536" fill="#8250df">await</text><text x="174" y="536" fill="#24292f"> _assetRepository.AddAsync(asset);</text>
+  </g>
+</svg>
