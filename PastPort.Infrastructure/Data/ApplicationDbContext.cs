@@ -21,6 +21,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     // ✅ Fixed
     public DbSet<SceneCache> SceneCaches => Set<SceneCache>();
     public DbSet<VrSession> VrSessions => Set<VrSession>();
+    public DbSet<UserExperience> UserExperiences => Set<UserExperience>();
+    public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<SupportTicket> SupportTickets => Set<SupportTicket>();
 
     // --- New Payment & Subscription DbSets ---
     public DbSet<Plan> Plans => Set<Plan>();
@@ -54,6 +57,42 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         {
             e.HasIndex(c => c.CharacterId);
             e.HasIndex(c => new { c.UserId, c.CharacterId });
+        });
+
+        builder.Entity<UserExperience>(e =>
+        {
+            e.HasIndex(x => new { x.UserId, x.CreatedAt });
+            e.HasIndex(x => x.VrSessionId);
+
+            e.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            e.HasOne(x => x.Scene)
+                .WithMany()
+                .HasForeignKey(x => x.SceneId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        builder.Entity<Notification>(e =>
+        {
+            e.HasIndex(n => new { n.UserId, n.IsRead, n.CreatedAt });
+
+            e.HasOne(n => n.User)
+                .WithMany()
+                .HasForeignKey(n => n.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<SupportTicket>(e =>
+        {
+            e.HasIndex(t => new { t.UserId, t.Status, t.CreatedAt });
+
+            e.HasOne(t => t.User)
+                .WithMany()
+                .HasForeignKey(t => t.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         // 2. Plan & Features
