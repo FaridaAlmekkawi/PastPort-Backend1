@@ -127,6 +127,7 @@ public class EmailService : IEmailService
             mailMessage.To.Add(toEmail);
 
             await smtpClient.SendMailAsync(mailMessage);
+            Console.WriteLine("✅ EMAIL SENT SUCCESSFULLY");
             _logger.LogInformation("✅ Email sent successfully to {Email}", toEmail);
         }
         catch (Exception ex)
