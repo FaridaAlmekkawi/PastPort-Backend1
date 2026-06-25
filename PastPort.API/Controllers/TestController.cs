@@ -8,7 +8,6 @@ namespace PastPort.API.Controllers;
 /// uptime monitoring, and deployment verification.
 /// </summary>
 [ApiController]
-[Route("api/[controller]")]
 public class TestController : ControllerBase
 {
     /// <summary>
@@ -16,7 +15,7 @@ public class TestController : ControllerBase
     /// </summary>
     /// <returns>A JSON object with a message, UTC timestamp, and API version.</returns>
     /// <response code="200">The API is running normally.</response>
-    [HttpGet]
+    [HttpGet("/")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public IActionResult Get()
     {
