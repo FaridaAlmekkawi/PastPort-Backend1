@@ -7,6 +7,7 @@ PastPort.API/appsettings.json
 # IDE
 .idea/
 *.DotSettings
+.agent/
 
 # Runtime artifacts
 PastPort.API/logs/
