@@ -16,7 +16,7 @@ public class VerifyResetCodeRequestDto
     public string Email { get; set; } = string.Empty;
     
     [Required]
-    [StringLength(6, MinimumLength = 6)]
+    [StringLength(5, MinimumLength = 5)]
     public string Code { get; set; } = string.Empty;
 }
 
@@ -27,6 +27,7 @@ public class ResetPasswordRequestDto
     public string Email { get; set; } = string.Empty;
     
     [Required]
+    [StringLength(5, MinimumLength = 5)]
     public string Code { get; set; } = string.Empty;
     
     [Required]

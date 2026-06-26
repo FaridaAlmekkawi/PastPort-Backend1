@@ -122,11 +122,55 @@ public class EmailService : IEmailService
                 From = new MailAddress(fromEmail!, fromName),
                 Subject = subject,
                 Body = body,
-                IsBodyHtml = true
+                IsBodyHtml = true,
+                SubjectEncoding = System.Text.Encoding.UTF8,
+                BodyEncoding = System.Text.Encoding.UTF8
             };
+
             mailMessage.To.Add(toEmail);
 
+            // Reply-To
+            mailMessage.ReplyToList.Add(
+                new MailAddress(fromEmail!, fromName)
+            );
+
+            // Anti-Spam Headers
+            mailMessage.Headers.Add("X-Priority", "3");
+            mailMessage.Headers.Add("X-MSMail-Priority", "Normal");
+            mailMessage.Headers.Add("Importance", "Normal");
+
+            // Plain Text Version
+            var plainTextBody = $@"
+PastPort
+
+{subject}
+
+If you requested this action, use the code included in this email.
+
+This code expires in 10 minutes.
+
+If you did not request this action, please ignore this email.
+
+PastPort Team
+";
+
+            var plainView = AlternateView.CreateAlternateViewFromString(
+                plainTextBody,
+                System.Text.Encoding.UTF8,
+                "text/plain"
+            );
+
+            var htmlView = AlternateView.CreateAlternateViewFromString(
+                body,
+                System.Text.Encoding.UTF8,
+                "text/html"
+            );
+
+            mailMessage.AlternateViews.Add(plainView);
+            mailMessage.AlternateViews.Add(htmlView);
+
             await smtpClient.SendMailAsync(mailMessage);
+            Console.WriteLine("✅ EMAIL SENT SUCCESSFULLY");
             _logger.LogInformation("✅ Email sent successfully to {Email}", toEmail);
         }
         catch (Exception ex)
