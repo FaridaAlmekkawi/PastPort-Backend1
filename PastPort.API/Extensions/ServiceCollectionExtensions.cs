@@ -165,6 +165,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(config);
         services.AddScoped<IMapper, ServiceMapper>();
 
+        // Hosted Services
+        services.AddHostedService<PastPort.API.BackgroundServices.VrSessionTimeoutService>();
+
         return services;
     }
 

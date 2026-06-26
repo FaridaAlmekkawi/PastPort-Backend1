@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PastPort.Application.Interfaces;
 using PastPort.Domain.Entities;
@@ -8,6 +8,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 namespace PastPort.API.Controllers;
 
 [Authorize]
@@ -257,6 +258,91 @@ public class VrEnvironmentController : ControllerBase
     {
         var healthy = await _vrService.CheckHealthAsync();
         return Ok(new { healthy });
+    }
+
+    [HttpGet("current-session")]
+    public async Task<IActionResult> GetCurrentSession()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrEmpty(userId))
+            return Unauthorized(new { message = "User identity not found." });
+
+        using var context = HttpContext.RequestServices
+            .GetRequiredService<PastPort.Infrastructure.Data.ApplicationDbContext>();
+
+        // 1) Find the latest session that is Pending
+        var session = await context.VrSessions
+            .Where(s => s.UserId == userId && s.Status == VrSessionStatus.Pending)
+            .OrderByDescending(s => s.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        // 2) If not found, find the latest session that is Active or Disconnected
+        if (session == null)
+        {
+            session = await context.VrSessions
+                .Where(s => s.UserId == userId && (s.Status == VrSessionStatus.Active || s.Status == VrSessionStatus.Disconnected))
+                .OrderByDescending(s => s.CreatedAt)
+                .FirstOrDefaultAsync();
+        }
+
+        if (session == null)
+            return NotFound(new { success = false, message = "No current session found." });
+
+        return Ok(new { success = true, data = session });
+    }
+
+    [HttpPost("session/{id:guid}/start")]
+    public async Task<IActionResult> StartSessionById(Guid id)
+    {
+        using var context = HttpContext.RequestServices
+            .GetRequiredService<PastPort.Infrastructure.Data.ApplicationDbContext>();
+
+        var session = await context.VrSessions.FirstOrDefaultAsync(s => s.Id == id);
+        if (session == null)
+            return NotFound(new { success = false, message = "Session not found." });
+
+        if (session.Status == VrSessionStatus.Pending)
+        {
+            session.Status = VrSessionStatus.Active;
+            session.StartedAt = DateTime.UtcNow;
+            session.LastHeartbeat = DateTime.UtcNow;
+            await context.SaveChangesAsync();
+        }
+
+        return Ok(new { success = true, data = session });
+    }
+
+    [HttpPost("session/{id:guid}/heartbeat")]
+    public async Task<IActionResult> Heartbeat(Guid id)
+    {
+        using var context = HttpContext.RequestServices
+            .GetRequiredService<PastPort.Infrastructure.Data.ApplicationDbContext>();
+
+        var session = await context.VrSessions.FirstOrDefaultAsync(s => s.Id == id);
+        if (session == null)
+            return NotFound(new { success = false, message = "Session not found." });
+
+        session.LastHeartbeat = DateTime.UtcNow;
+        await context.SaveChangesAsync();
+
+        return Ok(new { success = true });
+    }
+
+    [HttpPost("session/{id:guid}/end")]
+    public async Task<IActionResult> EndSession(Guid id)
+    {
+        using var context = HttpContext.RequestServices
+            .GetRequiredService<PastPort.Infrastructure.Data.ApplicationDbContext>();
+
+        var session = await context.VrSessions.FirstOrDefaultAsync(s => s.Id == id);
+        if (session == null)
+            return NotFound(new { success = false, message = "Session not found." });
+
+        session.Status = VrSessionStatus.Completed;
+        session.EndedAt = DateTime.UtcNow;
+        await context.SaveChangesAsync();
+
+        return Ok(new { success = true, data = session });
     }
 
     // ==================== Private Helpers ====================

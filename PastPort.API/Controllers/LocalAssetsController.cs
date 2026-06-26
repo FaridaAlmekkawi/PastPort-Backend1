@@ -77,7 +77,7 @@ public class LocalAssetsController(
 
     private static async Task<string> ComputeSha256Async(string filePath)
     {
-        await using var stream = File.OpenRead(filePath);
+        await using var stream = System.IO.File.OpenRead(filePath);
         var hash = await SHA256.HashDataAsync(stream);
         return Convert.ToHexString(hash).ToLowerInvariant();
     }

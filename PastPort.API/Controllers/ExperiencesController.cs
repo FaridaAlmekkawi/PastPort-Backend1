@@ -21,11 +21,14 @@ public class ExperiencesController(ApplicationDbContext context) : ControllerBas
     {
         if (!ModelState.IsValid) return BadRequest(ModelState);
 
-        var vrSessionId = Guid.NewGuid().ToString();
+        var vrSessionGuid = Guid.NewGuid();
+        var vrSessionId = vrSessionGuid.ToString();
         var vrSession = new VrSession
         {
-            Id = Guid.NewGuid(),
+            Id = vrSessionGuid,
             SessionId = vrSessionId,
+            UserId = UserId,
+            Status = VrSessionStatus.Pending,
             Civilization = request.Civilization,
             YearRange = request.YearRange,
             LocationOldName = request.LocationOldName,
