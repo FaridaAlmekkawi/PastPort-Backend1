@@ -58,7 +58,8 @@ public class VrEnvironmentService : IVrEnvironmentService
 
         _logger.LogInformation("Requesting scene generation: {Civ} ({Range})", civilization, yearRange);
 
-        // ⚠️ الطلب ده بياخد لحد 7 دقايق، الـ HttpClient timeout اتظبط في Program.cs
+        // Send the request to the VR generator service 
+        // Note: the response is waited for 7 minutes, as scene generation can take a long time
         var response = await _httpClient.GetAsync(query);
 
         if (!response.IsSuccessStatusCode)
