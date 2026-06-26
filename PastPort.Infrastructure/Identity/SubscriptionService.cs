@@ -102,7 +102,7 @@ namespace PastPort.Infrastructure.Identity
                 UserId = userId,
                 Amount = chargeAmount,
                 Currency = plan.Currency,
-                Status = (DomainTransactionStatus)(System.Transactions.TransactionStatus)TransactionStatus.Pending,
+                Status = DomainTransactionStatus.Pending,
                 Gateway = request.Gateway
             };
             _db.PaymentTransactions.Add(transaction);
@@ -129,7 +129,7 @@ namespace PastPort.Infrastructure.Identity
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Gateway session creation failed for transaction {TxId}", transaction.Id);
-                transaction.Status = (DomainTransactionStatus)(System.Transactions.TransactionStatus)TransactionStatus.Cancelled;
+                transaction.Status = DomainTransactionStatus.Cancelled;
                 transaction.FailureReason = "Gateway session creation failed.";
                 subscription.Status = SubscriptionStatus.PendingPayment;
                 await _db.SaveChangesAsync(ct);
@@ -172,7 +172,7 @@ namespace PastPort.Infrastructure.Identity
             sub.Status = SubscriptionStatus.Active;
             sub.UpdatedAt = DateTime.UtcNow;
 
-            tx.Status = (DomainTransactionStatus)(System.Transactions.TransactionStatus)TransactionStatus.Success;
+            tx.Status = DomainTransactionStatus.Success;
             tx.ProcessedAt = DateTime.UtcNow;
 
             if (tx.Invoice is not null)
@@ -196,7 +196,7 @@ namespace PastPort.Infrastructure.Identity
                 .FirstOrDefaultAsync(t => t.Id == transactionId, ct)
                 ?? throw new NotFoundException("Transaction", transactionId);
 
-            tx.Status = (DomainTransactionStatus)(System.Transactions.TransactionStatus)TransactionStatus.Failed;
+            tx.Status = DomainTransactionStatus.Failed;
             tx.FailureReason = reason;
             tx.ProcessedAt = DateTime.UtcNow;
 
@@ -252,7 +252,7 @@ namespace PastPort.Infrastructure.Identity
                 UserId = userId,
                 Amount = chargeAmount,
                 Currency = newPlan.Currency,
-                Status = (DomainTransactionStatus)(System.Transactions.TransactionStatus)TransactionStatus.Pending,
+                Status = DomainTransactionStatus.Pending,
             };
             _db.PaymentTransactions.Add(newTx);
             await _db.SaveChangesAsync(ct);

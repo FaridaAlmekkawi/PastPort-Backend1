@@ -70,7 +70,12 @@ public sealed class NpcAIService : INpcAIService
         IOptions<NpcAISettings> settings,
         ILogger<NpcAIService> logger)
     {
-        _settings = settings.Value;
+        _settings = new NpcAISettings
+        {
+            WebSocketUrl = NormalizeWebSocketUrl(settings.Value.WebSocketUrl),
+            ReceiveBufferBytes = settings.Value.ReceiveBufferBytes,
+            ConversationTimeoutSeconds = settings.Value.ConversationTimeoutSeconds
+        };
         _logger = logger;
 
         if (string.IsNullOrWhiteSpace(_settings.WebSocketUrl))
@@ -276,6 +281,25 @@ public sealed class NpcAIService : INpcAIService
             1 => [int.Parse(matches[0].Value), int.Parse(matches[0].Value)],
             _ => [int.Parse(matches[0].Value), int.Parse(matches[1].Value)]
         };
+    }
+
+    internal static string NormalizeWebSocketUrl(string webSocketUrl)
+    {
+        if (string.IsNullOrWhiteSpace(webSocketUrl))
+            return string.Empty;
+
+        var trimmed = webSocketUrl.Trim();
+        var uri = new Uri(trimmed, UriKind.Absolute);
+
+        if (!string.IsNullOrWhiteSpace(uri.AbsolutePath) && uri.AbsolutePath != "/")
+            return trimmed.TrimEnd('/');
+
+        var builder = new UriBuilder(uri)
+        {
+            Path = "/ws/npc"
+        };
+
+        return builder.Uri.ToString().TrimEnd('/');
     }
 
     private async Task CloseWebSocketAsync(ClientWebSocket ws)

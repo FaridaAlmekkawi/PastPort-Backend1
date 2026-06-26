@@ -100,7 +100,7 @@ namespace PastPort.Infrastructure.Identity
                         break;
 
                     case TransactionStatus.Refunded:
-                        transaction.Status = (TransactionStatus)(System.Transactions.TransactionStatus)TransactionStatus.Refunded;
+                        transaction.Status = TransactionStatus.Refunded;
                         await _db.SaveChangesAsync(ct);
                         break;
                 }

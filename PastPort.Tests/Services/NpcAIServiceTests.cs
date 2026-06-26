@@ -130,4 +130,15 @@ public class NpcAIServiceTests
 
         result.Should().Equal(start, end);
     }
+
+    [Theory]
+    [InlineData("wss://gizmo-battering-moaning.ngrok-free.dev", "wss://gizmo-battering-moaning.ngrok-free.dev/ws/npc")]
+    [InlineData("wss://gizmo-battering-moaning.ngrok-free.dev/", "wss://gizmo-battering-moaning.ngrok-free.dev/ws/npc")]
+    [InlineData("wss://gizmo-battering-moaning.ngrok-free.dev/ws/npc", "wss://gizmo-battering-moaning.ngrok-free.dev/ws/npc")]
+    public void NormalizeWebSocketUrl_UsesNpcEndpoint(string input, string expected)
+    {
+        var result = NpcAIService.NormalizeWebSocketUrl(input);
+
+        result.Should().Be(expected);
+    }
 }

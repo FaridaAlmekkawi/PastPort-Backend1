@@ -9,6 +9,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using PastPort.Infrastructure.Data;
 namespace PastPort.API.Controllers;
 
 [Authorize]
@@ -20,6 +21,7 @@ public class VrEnvironmentController : ControllerBase
     private readonly IAssetRepository _assetRepository;
     private readonly ISceneCacheRepository _sceneCacheRepository;
     private readonly IFileStorageService _fileStorageService;
+    private readonly ApplicationDbContext _context;
     private readonly ILogger<VrEnvironmentController> _logger;
 
     // كام يوم الـ scene cache يفضل صالح
@@ -30,12 +32,14 @@ public class VrEnvironmentController : ControllerBase
         IAssetRepository assetRepository,
         ISceneCacheRepository sceneCacheRepository,
         IFileStorageService fileStorageService,
+        ApplicationDbContext context,
         ILogger<VrEnvironmentController> logger)
     {
         _vrService = vrService;
         _assetRepository = assetRepository;
         _sceneCacheRepository = sceneCacheRepository;
         _fileStorageService = fileStorageService;
+        _context = context;
         _logger = logger;
     }
 
@@ -45,12 +49,15 @@ public class VrEnvironmentController : ControllerBase
     [HttpPost("session")]
     public async Task<IActionResult> StartSession([FromBody] StartVrSessionRequest request)
     {
+        var userId = CurrentUserId();
         var sessionId = Guid.NewGuid().ToString();
 
         var session = new VrSession
         {
             Id = Guid.NewGuid(),
             SessionId = sessionId,
+            UserId = userId,
+            Status = VrSessionStatus.Pending,
             Civilization = request.Civilization,
             YearRange = request.YearRange,
             LocationOldName = request.LocationOldName,
@@ -61,10 +68,8 @@ public class VrEnvironmentController : ControllerBase
 
         // خزّن السيشن مؤقتًا في الـ DB
         // (لو عندك Redis ممكن تخزنه هناك بدل الـ DB)
-        using var context = HttpContext.RequestServices
-            .GetRequiredService<PastPort.Infrastructure.Data.ApplicationDbContext>();
-        context.VrSessions.Add(session);
-        await context.SaveChangesAsync();
+        _context.VrSessions.Add(session);
+        await _context.SaveChangesAsync();
 
         _logger.LogInformation(
             "VR Session started: {SessionId} | Civ: {Civ}",
@@ -83,13 +88,14 @@ public class VrEnvironmentController : ControllerBase
     [HttpGet("scene/{sessionId}")]
     public async Task<IActionResult> GetScene(string sessionId)
     {
-        // 1) جيب الـ session من الـ DB
-        using var context = HttpContext.RequestServices
-            .GetRequiredService<PastPort.Infrastructure.Data.ApplicationDbContext>();
+        var userId = CurrentUserId();
 
-        var session = await context.VrSessions
+        // 1) جيب الـ session من الـ DB
+        
+        var session = await _context.VrSessions
             .FirstOrDefaultAsync(s =>
                 s.SessionId == sessionId &&
+                s.UserId == userId &&
                 s.ExpiresAt > DateTime.UtcNow);
 
         if (session == null)
@@ -211,6 +217,7 @@ public class VrEnvironmentController : ControllerBase
         // 3) خزّن الملف
         using var ms = new MemoryStream();
         await glbStream.CopyToAsync(ms, cancellationToken);
+        await glbStream.DisposeAsync();
         var fileBytes = ms.ToArray();
 
         var fileName = $"{promptHash}.glb";
@@ -226,7 +233,7 @@ public class VrEnvironmentController : ControllerBase
             FilePath = fileUrl,
             FileUrl = fileUrl,
             FileSize = fileBytes.Length,
-            FileHash = ComputeHash(Convert.ToBase64String(fileBytes)),
+            FileHash = ComputeHash(fileBytes),
             SourcePromptHash = promptHash,
             Version = "1.0.0",
             Status = AssetStatus.Available,
@@ -263,15 +270,11 @@ public class VrEnvironmentController : ControllerBase
     [HttpGet("current-session")]
     public async Task<IActionResult> GetCurrentSession()
     {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (string.IsNullOrEmpty(userId))
-            return Unauthorized(new { message = "User identity not found." });
+        var userId = CurrentUserId();
 
-        using var context = HttpContext.RequestServices
-            .GetRequiredService<PastPort.Infrastructure.Data.ApplicationDbContext>();
-
+        
         // 1) Find the latest session that is Pending
-        var session = await context.VrSessions
+        var session = await _context.VrSessions
             .Where(s => s.UserId == userId && s.Status == VrSessionStatus.Pending)
             .OrderByDescending(s => s.CreatedAt)
             .FirstOrDefaultAsync();
@@ -279,7 +282,7 @@ public class VrEnvironmentController : ControllerBase
         // 2) If not found, find the latest session that is Active or Disconnected
         if (session == null)
         {
-            session = await context.VrSessions
+            session = await _context.VrSessions
                 .Where(s => s.UserId == userId && (s.Status == VrSessionStatus.Active || s.Status == VrSessionStatus.Disconnected))
                 .OrderByDescending(s => s.CreatedAt)
                 .FirstOrDefaultAsync();
@@ -294,10 +297,9 @@ public class VrEnvironmentController : ControllerBase
     [HttpPost("session/{id:guid}/start")]
     public async Task<IActionResult> StartSessionById(Guid id)
     {
-        using var context = HttpContext.RequestServices
-            .GetRequiredService<PastPort.Infrastructure.Data.ApplicationDbContext>();
+        var userId = CurrentUserId();
 
-        var session = await context.VrSessions.FirstOrDefaultAsync(s => s.Id == id);
+        var session = await _context.VrSessions.FirstOrDefaultAsync(s => s.Id == id && s.UserId == userId);
         if (session == null)
             return NotFound(new { success = false, message = "Session not found." });
 
@@ -306,7 +308,7 @@ public class VrEnvironmentController : ControllerBase
             session.Status = VrSessionStatus.Active;
             session.StartedAt = DateTime.UtcNow;
             session.LastHeartbeat = DateTime.UtcNow;
-            await context.SaveChangesAsync();
+            await _context.SaveChangesAsync();
         }
 
         return Ok(new { success = true, data = session });
@@ -315,15 +317,14 @@ public class VrEnvironmentController : ControllerBase
     [HttpPost("session/{id:guid}/heartbeat")]
     public async Task<IActionResult> Heartbeat(Guid id)
     {
-        using var context = HttpContext.RequestServices
-            .GetRequiredService<PastPort.Infrastructure.Data.ApplicationDbContext>();
+        var userId = CurrentUserId();
 
-        var session = await context.VrSessions.FirstOrDefaultAsync(s => s.Id == id);
+        var session = await _context.VrSessions.FirstOrDefaultAsync(s => s.Id == id && s.UserId == userId);
         if (session == null)
             return NotFound(new { success = false, message = "Session not found." });
 
         session.LastHeartbeat = DateTime.UtcNow;
-        await context.SaveChangesAsync();
+        await _context.SaveChangesAsync();
 
         return Ok(new { success = true });
     }
@@ -331,16 +332,15 @@ public class VrEnvironmentController : ControllerBase
     [HttpPost("session/{id:guid}/end")]
     public async Task<IActionResult> EndSession(Guid id)
     {
-        using var context = HttpContext.RequestServices
-            .GetRequiredService<PastPort.Infrastructure.Data.ApplicationDbContext>();
+        var userId = CurrentUserId();
 
-        var session = await context.VrSessions.FirstOrDefaultAsync(s => s.Id == id);
+        var session = await _context.VrSessions.FirstOrDefaultAsync(s => s.Id == id && s.UserId == userId);
         if (session == null)
             return NotFound(new { success = false, message = "Session not found." });
 
         session.Status = VrSessionStatus.Completed;
         session.EndedAt = DateTime.UtcNow;
-        await context.SaveChangesAsync();
+        await _context.SaveChangesAsync();
 
         return Ok(new { success = true, data = session });
     }
@@ -364,6 +364,17 @@ public class VrEnvironmentController : ControllerBase
         return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 
+    private static string ComputeHash(byte[] input)
+    {
+        using var sha256 = SHA256.Create();
+        var bytes = sha256.ComputeHash(input);
+        return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
+    private string CurrentUserId()
+        => User.FindFirstValue(ClaimTypes.NameIdentifier)
+           ?? throw new UnauthorizedAccessException("User identity not found.");
+
     private async Task<string> SaveGlbAsync(byte[] fileBytes, string fileName)
     {
         using var stream = new MemoryStream(fileBytes);
@@ -385,3 +396,4 @@ public class StartVrSessionRequest
     public string LocationOldName { get; set; } = string.Empty;
     public string? RoleOrName { get; set; }
 }
+

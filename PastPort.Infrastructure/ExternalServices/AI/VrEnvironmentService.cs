@@ -26,7 +26,7 @@ public class VrEnvironmentService : IVrEnvironmentService
     {
         _httpClient = httpClient;
         _logger = logger;
-        _httpClient.BaseAddress = new Uri(settings.Value.BaseUrl);
+        _httpClient.BaseAddress = NormalizeBaseAddress(settings.Value.BaseUrl);
     }
 
     public async Task<bool> CheckHealthAsync()
@@ -96,5 +96,18 @@ public class VrEnvironmentService : IVrEnvironmentService
         }
 
         return await response.Content.ReadAsStreamAsync(cancellationToken);
+    }
+
+    internal static Uri NormalizeBaseAddress(string baseUrl)
+    {
+        if (string.IsNullOrWhiteSpace(baseUrl))
+            throw new InvalidOperationException("VrGenerator:BaseUrl is not configured.");
+
+        var builder = new UriBuilder(baseUrl.Trim());
+
+        if (builder.Path.Equals("/docs", StringComparison.OrdinalIgnoreCase))
+            builder.Path = "/";
+
+        return builder.Uri;
     }
 }

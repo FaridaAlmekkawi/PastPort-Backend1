@@ -36,4 +36,14 @@ public class VrEnvironmentServiceTests
         var result = await _sut.CheckHealthAsync();
         result.Should().BeTrue();
     }
+
+    [Theory]
+    [InlineData("https://gizmo-battering-moaning.ngrok-free.dev/docs", "https://gizmo-battering-moaning.ngrok-free.dev/")]
+    [InlineData("https://gizmo-battering-moaning.ngrok-free.dev", "https://gizmo-battering-moaning.ngrok-free.dev/")]
+    public void NormalizeBaseAddress_RemovesDocsPath(string input, string expected)
+    {
+        var result = VrEnvironmentService.NormalizeBaseAddress(input);
+
+        result.Should().Be(expected);
+    }
 }
