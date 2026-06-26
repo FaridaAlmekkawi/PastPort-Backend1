@@ -1,5 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using System.ComponentModel.DataAnnotations;
 using System.Reflection;
@@ -32,19 +32,18 @@ public class SwaggerFileOperationFilter : IOperationFilter
         if (!fileParams.Any())
             return;
 
+        IDictionary<string, OpenApiMediaType> content = new Dictionary<string, OpenApiMediaType>
+        {
+            ["multipart/form-data"] = new OpenApiMediaType
+            {
+                Schema = CreateFormDataSchema(context, formFileParameters)
+            }
+        };
+
         // تحديث request body
         operation.RequestBody = new OpenApiRequestBody
         {
-            Content = new Dictionary<string, OpenApiMediaType>
-            {
-                {
-                    "multipart/form-data",
-                    new OpenApiMediaType
-                    {
-                        Schema = CreateFormDataSchema(context, formFileParameters)
-                    }
-                }
-            }
+            Content = content
         };
 
         // شيل parameters القديمة من الـ operation
@@ -55,11 +54,10 @@ public class SwaggerFileOperationFilter : IOperationFilter
     {
         var schema = new OpenApiSchema
         {
-            Type = "object",
-            Properties = new Dictionary<string, OpenApiSchema>(),
+            Properties = new Dictionary<string, IOpenApiSchema>(),
             Required = new HashSet<string>()
         };
-
+ 
         foreach (var param in formFileParameters)
         {
             var isFile = param.ParameterType == typeof(IFormFile);
@@ -69,7 +67,6 @@ public class SwaggerFileOperationFilter : IOperationFilter
             {
                 schema.Properties[param.Name!] = new OpenApiSchema
                 {
-                    Type = "string",
                     Format = "binary",
                     Description = $"Upload file - {param.Name}"
                 };
@@ -85,7 +82,6 @@ public class SwaggerFileOperationFilter : IOperationFilter
 
                 schema.Properties[param.Name!] = new OpenApiSchema
                 {
-                    Type = paramType.Type,
                     Format = paramType.Format,
                     Description = $"Field - {param.Name}"
                 };

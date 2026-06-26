@@ -1,10 +1,13 @@
+using System.Reflection;
 using System.Text;
 using AspNetCoreRateLimit;
+using Mapster;
+using MapsterMapper;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using PastPort.Application.Common;
 using PastPort.Application.Interfaces;
 using PastPort.Application.Services;
@@ -17,10 +20,7 @@ using PastPort.Infrastructure.ExternalServices.Payment;
 using PastPort.Infrastructure.ExternalServices.Storage;
 using PastPort.Infrastructure.Identity;
 using PastPort.Infrastructure.Services;
-using Mapster;
-using MapsterMapper;
 using Serilog;
-using System.Reflection;
 
 
 namespace PastPort.API.Extensions;
@@ -98,9 +98,10 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddRateLimitingAndCache(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddMemoryCache(options =>
+        services.AddStackExchangeRedisCache(options =>
         {
-            options.ExpirationScanFrequency = TimeSpan.FromMinutes(5);
+            options.Configuration = configuration.GetConnectionString("Redis");
+            options.InstanceName = "PastPort_";
         });
 
         services.Configure<IpRateLimitOptions>(configuration.GetSection("IpRateLimiting"));
@@ -181,21 +182,6 @@ public static class ServiceCollectionExtensions
                 Scheme = "Bearer",
                 In = ParameterLocation.Header,
                 Description = "Enter JWT token"
-            });
-
-            options.AddSecurityRequirement(new OpenApiSecurityRequirement
-            {
-                {
-                    new OpenApiSecurityScheme
-                    {
-                        Reference = new OpenApiReference
-                        {
-                            Type = ReferenceType.SecurityScheme,
-                            Id = "Bearer"
-                        }
-                    },
-                    Array.Empty<string>()
-                }
             });
         });
 
