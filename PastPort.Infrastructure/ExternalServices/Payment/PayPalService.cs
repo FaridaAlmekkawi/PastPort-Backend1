@@ -172,7 +172,7 @@ public class PayPalService : IPaymentService
             Message = "Order created successfully",
             OrderId = orderId,
             ApprovalLink = $"https://sandbox.paypal.com/checkoutnow?token={orderId}",
-            Status = PaymentStatus.Pending
+            Status = PastPort.Application.DTOs.Response.PaymentStatus.Pending
         });
     }
 
@@ -182,7 +182,7 @@ public class PayPalService : IPaymentService
             Success = true,
             Message = "Payment completed",
             OrderId = orderId,
-            Status = PaymentStatus.Completed
+            Status = PastPort.Application.DTOs.Response.PaymentStatus.Completed
         });
 
     public Task<PayPalPaymentResponseDto> GetOrderDetailsAsync(string orderId)
@@ -191,7 +191,7 @@ public class PayPalService : IPaymentService
             Success = true,
             Message = "Order details retrieved",
             OrderId = orderId,
-            Status = PaymentStatus.Completed
+            Status = PastPort.Application.DTOs.Response.PaymentStatus.Completed
         });
 
     private static string? TryGetGatewayTransactionId(JsonElement root)
@@ -268,3 +268,4 @@ public class PayPalService : IPaymentService
         return GetString(childArray[childIndex], propertyName);
     }
 }
+
