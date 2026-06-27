@@ -80,8 +80,8 @@ sequenceDiagram
 1. User calls `POST /api/auth/forgot-password` with their email
 2. Backend **always returns 200** (prevents email enumeration)
 3. If the email exists, a reset code is sent via SMTP
-4. User calls `POST /api/auth/verify-reset-code` with the code
-5. User calls `POST /api/auth/reset-password` with the verified code + new password
+4. User calls `POST /api/auth/verify-reset-code` with the code and receives a `resetToken`
+5. User calls `POST /api/auth/reset-password` with the `resetToken` + new password
 
 ---
 

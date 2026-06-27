@@ -250,7 +250,7 @@ public class AuthService : IAuthService
             .ToListAsync();
         _context.PasswordResetTokens.RemoveRange(oldTokens);
 
-        var code = GenerateVerificationCode(5);
+        var code = await GenerateUniquePasswordResetCodeAsync();
         _context.PasswordResetTokens.Add(new PasswordResetToken
         {
             Id = Guid.NewGuid(),
@@ -274,11 +274,8 @@ public class AuthService : IAuthService
 
     public async Task<ApiResponseDto> VerifyResetCodeAsync(VerifyResetCodeRequestDto request)
     {
-        var user = await _userManager.FindByEmailAsync(request.Email);
-        if (user == null) return new ApiResponseDto { Success = false, Message = "Invalid code" };
-
         var resetToken = await _context.PasswordResetTokens
-            .Where(r => r.UserId == user.Id && r.Code == request.Code && !r.IsUsed)
+            .Where(r => r.Code == request.Code && !r.IsUsed)
             .OrderByDescending(r => r.CreatedAt)
             .FirstOrDefaultAsync();
 
@@ -290,16 +287,16 @@ public class AuthService : IAuthService
 
     public async Task<ApiResponseDto> ResetPasswordAsync(ResetPasswordRequestDto request)
     {
-        var user = await _userManager.FindByEmailAsync(request.Email);
-        if (user == null) return new ApiResponseDto { Success = false, Message = "Invalid request" };
-
         var resetToken = await _context.PasswordResetTokens
-            .Where(r => r.UserId == user.Id && r.Code == request.Code && !r.IsUsed)
+            .Where(r => r.Token == request.ResetToken && !r.IsUsed)
             .OrderByDescending(r => r.CreatedAt)
             .FirstOrDefaultAsync();
 
-        if (resetToken == null) return new ApiResponseDto { Success = false, Message = "Invalid code" };
+        if (resetToken == null) return new ApiResponseDto { Success = false, Message = "Invalid reset token" };
         if (resetToken.ExpiresAt < DateTime.UtcNow) return new ApiResponseDto { Success = false, Message = "Code has expired" };
+
+        var user = await _userManager.FindByIdAsync(resetToken.UserId);
+        if (user == null) return new ApiResponseDto { Success = false, Message = "Invalid request" };
 
         var token = await _userManager.GeneratePasswordResetTokenAsync(user);
         var result = await _userManager.ResetPasswordAsync(user, token, request.NewPassword);
@@ -396,6 +393,23 @@ public class AuthService : IAuthService
             TokenExpiration = DateTime.UtcNow.AddMinutes(_jwtSettings.ExpiryMinutes),
             User = _mapper.Map<UserDto>(user)
         };
+    }
+
+    private async Task<string> GenerateUniquePasswordResetCodeAsync()
+    {
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            var code = GenerateVerificationCode(5);
+            var exists = await _context.PasswordResetTokens.AnyAsync(r =>
+                r.Code == code &&
+                !r.IsUsed &&
+                r.ExpiresAt > DateTime.UtcNow);
+
+            if (!exists)
+                return code;
+        }
+
+        return GenerateVerificationCode(5);
     }
 
     private static string GenerateVerificationCode(int length = 6)

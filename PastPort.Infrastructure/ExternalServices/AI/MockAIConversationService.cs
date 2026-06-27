@@ -10,7 +10,7 @@ public class MockAIConversationService : IAIConversationService
         string userMessage,
         List<string>? conversationHistory = null)
     {
-        // Mock response - في Phase 4 هنربطها بـ OpenAI أو Claude
+       
         var response = $"[{character.Name} responds]: I am {character.Name}, {character.Role}. " +
                       $"You asked: '{userMessage}'. " +
                       $"Based on my background as {character.Background}, " +

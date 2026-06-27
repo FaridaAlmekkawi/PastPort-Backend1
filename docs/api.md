@@ -224,8 +224,18 @@ Verify the password reset code.
 **Request Body:**
 ```json
 {
-  "email": "ahmed@example.com",
-  "code": "654321"
+  "code": "65432"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Code verified successfully",
+  "data": {
+    "token": "password-reset-token"
+  }
 }
 ```
 
@@ -240,9 +250,9 @@ Reset the user's password using a verified reset code.
 **Request Body:**
 ```json
 {
-  "email": "ahmed@example.com",
-  "code": "654321",
-  "newPassword": "NewSecureP@ss456!"
+  "resetToken": "password-reset-token",
+  "newPassword": "NewSecureP@ss456!",
+  "confirmPassword": "NewSecureP@ss456!"
 }
 ```
 

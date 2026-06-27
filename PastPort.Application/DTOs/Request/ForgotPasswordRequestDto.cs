@@ -12,10 +12,6 @@ public class ForgotPasswordRequestDto
 public class VerifyResetCodeRequestDto
 {
     [Required]
-    [EmailAddress]
-    public string Email { get; set; } = string.Empty;
-    
-    [Required]
     [StringLength(5, MinimumLength = 5)]
     public string Code { get; set; } = string.Empty;
 }
@@ -23,12 +19,7 @@ public class VerifyResetCodeRequestDto
 public class ResetPasswordRequestDto
 {
     [Required]
-    [EmailAddress]
-    public string Email { get; set; } = string.Empty;
-    
-    [Required]
-    [StringLength(5, MinimumLength = 5)]
-    public string Code { get; set; } = string.Empty;
+    public string ResetToken { get; set; } = string.Empty;
     
     [Required]
     [MinLength(8)]
