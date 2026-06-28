@@ -194,18 +194,11 @@ public static class ServiceCollectionExtensions
                 Description = "Enter JWT token"
             });
 
-            options.AddSecurityRequirement(new OpenApiSecurityRequirement
+            options.AddSecurityRequirement(_ => new OpenApiSecurityRequirement
             {
                 {
-                    new OpenApiSecurityScheme
-                    {
-                        Reference = new OpenApiReference
-                        {
-                            Type = ReferenceType.SecurityScheme,
-                            Id = "Bearer"
-                        }
-                    },
-                    Array.Empty<string>()
+                    new OpenApiSecuritySchemeReference("Bearer"),
+                    new List<string>()
                 }
             });
 
