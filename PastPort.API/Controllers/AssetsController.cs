@@ -103,7 +103,6 @@ namespace PastPort.API.Controllers
         [Consumes("multipart/form-data")]
         public async Task<IActionResult> UploadAsset(
             [Required]
-            [FromForm(Name = "file")]
             IFormFile? file,
             [Required]
             [FromForm(Name = "name")]

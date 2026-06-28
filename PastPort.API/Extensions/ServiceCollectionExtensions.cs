@@ -98,6 +98,8 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddRateLimitingAndCache(this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddMemoryCache();
+
         services.AddStackExchangeRedisCache(options =>
         {
             options.Configuration = configuration.GetConnectionString("Redis");
@@ -177,6 +179,8 @@ public static class ServiceCollectionExtensions
         services.AddSwaggerGen(options =>
         {
             options.SwaggerDoc("v1", new OpenApiInfo { Title = "PastPort API", Version = "v1" });
+
+            options.OperationFilter<SwaggerFileOperationFilter>();
 
             options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
             {
