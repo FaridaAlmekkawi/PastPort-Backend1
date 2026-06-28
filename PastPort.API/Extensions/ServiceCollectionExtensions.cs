@@ -104,6 +104,8 @@ public static class ServiceCollectionExtensions
             options.InstanceName = "PastPort_";
         });
 
+        services.AddMemoryCache();
+
         services.Configure<IpRateLimitOptions>(configuration.GetSection("IpRateLimiting"));
         services.AddSingleton<IIpPolicyStore, MemoryCacheIpPolicyStore>();
         services.AddSingleton<IRateLimitCounterStore, MemoryCacheRateLimitCounterStore>();
@@ -177,6 +179,7 @@ public static class ServiceCollectionExtensions
         services.AddSwaggerGen(options =>
         {
             options.SwaggerDoc("v1", new OpenApiInfo { Title = "PastPort API", Version = "v1" });
+            options.SwaggerDoc("generative", new OpenApiInfo { Title = "PastPort VR & Generative API", Version = "Generative V1" });
 
             options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
             {
@@ -185,6 +188,35 @@ public static class ServiceCollectionExtensions
                 Scheme = "Bearer",
                 In = ParameterLocation.Header,
                 Description = "Enter JWT token"
+            });
+
+            options.AddSecurityRequirement(new OpenApiSecurityRequirement
+            {
+                {
+                    new OpenApiSecurityScheme
+                    {
+                        Reference = new OpenApiReference
+                        {
+                            Type = ReferenceType.SecurityScheme,
+                            Id = "Bearer"
+                        }
+                    },
+                    Array.Empty<string>()
+                }
+            });
+
+            options.DocInclusionPredicate((docName, apiDesc) =>
+            {
+                if (docName == "generative")
+                {
+                    var controllerName = apiDesc.ActionDescriptor.RouteValues["controller"];
+                    return controllerName == "VrEnvironment" || 
+                           controllerName == "NpcSession" || 
+                           controllerName == "UnityAssets" ||
+                           controllerName == "Experiences" ||
+                           controllerName == "Auth";
+                }
+                return docName == "v1";
             });
         });
 

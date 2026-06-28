@@ -61,6 +61,7 @@ public static class MiddlewareExtensions
         app.UseSwaggerUI(options =>
         {
             options.SwaggerEndpoint("./v1/swagger.json", "PastPort API v1");
+            options.SwaggerEndpoint("./generative/swagger.json", "PastPort VR & Generative API");
             options.RoutePrefix = "swagger";
         });
 
