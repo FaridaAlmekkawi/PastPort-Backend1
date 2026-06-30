@@ -11,6 +11,8 @@
 		<PackageReference Include="AspNet.Security.OAuth.Apple" Version="10.0.0" />
 		<PackageReference Include="AspNetCoreRateLimit" Version="5.0.0" />
 		<PackageReference Include="AutoMapper" Version="16.1.1" />
+		<PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="4.0.100" />
+		<PackageReference Include="AWSSDK.S3" Version="4.0.100" />
 
 		<PackageReference Include="BCrypt.Net-Next" Version="4.2.1" />
 
@@ -34,7 +36,7 @@
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
 		<PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.9" />
-
+		<PackageReference Include="Microsoft.OpenApi" Version="2.7.5" />
 		<PackageReference Include="PayPalCheckoutSdk" Version="1.0.4" />
 		<PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
 		<PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
