@@ -7,7 +7,6 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi;
 using PastPort.Application.Common;
 using PastPort.Application.Interfaces;
 using PastPort.Application.Services;
@@ -18,6 +17,11 @@ using PastPort.Infrastructure.Data.Repositories;
 using PastPort.Infrastructure.ExternalServices.AI;
 using PastPort.Infrastructure.ExternalServices.Payment;
 using PastPort.Infrastructure.ExternalServices.Storage;
+using Amazon;
+using Amazon.Extensions.NETCore.Setup;
+using Amazon.Runtime;
+using Amazon.S3;
+using Microsoft.OpenApi;
 using PastPort.Infrastructure.Identity;
 using PastPort.Infrastructure.Services;
 using Serilog;
@@ -157,7 +161,16 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IEmailService, EmailService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IPaymentService, PayPalService>();
-        services.AddScoped<IFileStorageService, LocalFileStorageService>();
+        var awsOptions = new AWSOptions
+        {
+            Region = RegionEndpoint.GetBySystemName(configuration["AWS:Region"]),
+            Credentials = new BasicAWSCredentials(
+                configuration["AWS:AccessKey"],
+                configuration["AWS:SecretKey"])
+        };
+        services.AddDefaultAWSOptions(awsOptions);
+        services.AddAWSService<IAmazonS3>();
+        services.AddScoped<IFileStorageService, S3FileStorageService>();
         services.AddScoped<IAIConversationService, MockAIConversationService>();
         
         if (configuration.GetValue<bool>("NpcAI:UseMock"))
@@ -204,11 +217,12 @@ public static class ServiceCollectionExtensions
 
             options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
             {
+                Description = "Enter only the JWT token. Do not include 'Bearer '.",
                 Name = "Authorization",
-                Type = SecuritySchemeType.Http,
-                Scheme = "Bearer",
                 In = ParameterLocation.Header,
-                Description = "Enter JWT token"
+                Type = SecuritySchemeType.Http,
+                Scheme = "bearer",
+                BearerFormat = "JWT"
             });
 
             options.AddSecurityRequirement(_ => new OpenApiSecurityRequirement
@@ -224,12 +238,13 @@ public static class ServiceCollectionExtensions
                 if (docName == "generative")
                 {
                     var controllerName = apiDesc.ActionDescriptor.RouteValues["controller"];
-                    return controllerName == "VrEnvironment" || 
-                           controllerName == "NpcSession" || 
+                    return controllerName == "VrEnvironment" ||
+                           controllerName == "NpcSession" ||
                            controllerName == "UnityAssets" ||
                            controllerName == "Experiences" ||
                            controllerName == "Auth";
                 }
+
                 return docName == "v1";
             });
         });

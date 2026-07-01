@@ -6,23 +6,17 @@ using System.Reflection;
 
 namespace PastPort.API.Extensions;
 
-/// <summary>
-/// Custom filter لـ Swagger لدعم file uploads
-/// </summary>
 public class SwaggerFileOperationFilter : IOperationFilter
 {
     public void Apply(OpenApiOperation operation, OperationFilterContext context)
     {
-        // البحث عن [FromForm] parameters
         var formFileParameters = context.MethodInfo.GetParameters()
             .Where(p => p.GetCustomAttribute<FromFormAttribute>() != null)
             .ToList();
 
-        // إذا ما في file uploads، اتخطى
         if (!formFileParameters.Any())
             return;
 
-        // البحث عن IFormFile parameters
         var fileParams = formFileParameters
             .Where(p => p.ParameterType == typeof(IFormFile) ||
                        (p.ParameterType.IsGenericType &&
@@ -40,24 +34,23 @@ public class SwaggerFileOperationFilter : IOperationFilter
             }
         };
 
-        // تحديث request body
         operation.RequestBody = new OpenApiRequestBody
         {
             Content = content
         };
 
-        // شيل parameters القديمة من الـ operation
         operation.Parameters?.Clear();
     }
 
-    private OpenApiSchema CreateFormDataSchema(OperationFilterContext _, List<ParameterInfo> formFileParameters)
+    private static OpenApiSchema CreateFormDataSchema(OperationFilterContext _, List<ParameterInfo> formFileParameters)
     {
         var schema = new OpenApiSchema
         {
+            Type = JsonSchemaType.Object,
             Properties = new Dictionary<string, IOpenApiSchema>(),
             Required = new HashSet<string>()
         };
- 
+
         foreach (var param in formFileParameters)
         {
             var isFile = param.ParameterType == typeof(IFormFile);
@@ -67,6 +60,7 @@ public class SwaggerFileOperationFilter : IOperationFilter
             {
                 schema.Properties[param.Name!] = new OpenApiSchema
                 {
+                    Type = JsonSchemaType.String,
                     Format = "binary",
                     Description = $"Upload file - {param.Name}"
                 };
@@ -78,11 +72,9 @@ public class SwaggerFileOperationFilter : IOperationFilter
             }
             else
             {
-                var paramType = GetOpenApiType(param.ParameterType);
-
                 schema.Properties[param.Name!] = new OpenApiSchema
                 {
-                    Format = paramType.Format,
+                    Type = JsonSchemaType.String,
                     Description = $"Field - {param.Name}"
                 };
 
@@ -94,25 +86,5 @@ public class SwaggerFileOperationFilter : IOperationFilter
         }
 
         return schema;
-    }
-
-    private (string Type, string? Format) GetOpenApiType(Type type)
-    {
-        if (type == typeof(string))
-            return ("string", null);
-        if (type == typeof(int) || type == typeof(int?))
-            return ("integer", "int32");
-        if (type == typeof(long) || type == typeof(long?))
-            return ("integer", "int64");
-        if (type == typeof(Guid) || type == typeof(Guid?))
-            return ("string", "uuid");
-        if (type == typeof(bool) || type == typeof(bool?))
-            return ("boolean", null);
-        if (type == typeof(decimal) || type == typeof(decimal?))
-            return ("number", "double");
-        if (type == typeof(DateTime) || type == typeof(DateTime?))
-            return ("string", "date-time");
-
-        return ("string", null);
     }
 }
