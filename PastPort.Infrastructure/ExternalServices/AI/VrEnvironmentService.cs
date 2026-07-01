@@ -1,4 +1,4 @@
-﻿using System.Net.Http.Json;
+using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -29,6 +29,7 @@ public class VrEnvironmentService : IVrEnvironmentService
         _httpClient.BaseAddress = NormalizeBaseAddress(settings.Value.BaseUrl);
     }
 
+
     public async Task<bool> CheckHealthAsync()
     {
         try
@@ -45,18 +46,18 @@ public class VrEnvironmentService : IVrEnvironmentService
 
     public async Task<SceneGenerationResponseDto> GenerateSceneAsync(
         string civilization,
-        string yearRange,
         string locationOldName,
+        string goal,
         string? roleOrName)
     {
         var query = $"/scene?civilization={Uri.EscapeDataString(civilization)}" +
-                    $"&year_range={Uri.EscapeDataString(yearRange)}" +
-                    $"&location_old_name={Uri.EscapeDataString(locationOldName)}";
+                    $"&location_old_name={Uri.EscapeDataString(locationOldName)}" +
+                    $"&goal={Uri.EscapeDataString(goal)}";
 
         if (!string.IsNullOrWhiteSpace(roleOrName))
             query += $"&role_or_name={Uri.EscapeDataString(roleOrName)}";
 
-        _logger.LogInformation("Requesting scene generation: {Civ} ({Range})", civilization, yearRange);
+        _logger.LogInformation("Requesting scene generation: {Civ} ({Goal})", civilization, goal);
 
         // Send the request to the VR generator service 
         // Note: the response is waited for 7 minutes, as scene generation can take a long time

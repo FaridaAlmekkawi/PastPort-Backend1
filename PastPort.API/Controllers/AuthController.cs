@@ -183,4 +183,19 @@ public class AuthController(IAuthService authService) : ControllerBase
     public Task<IActionResult> MobileExternalLogin([FromBody] ExternalLoginRequestDto request)
         => Task.FromResult<IActionResult>(
             BadRequest(new { message = "Use web login flow or implement token verification per provider." }));
+    [Authorize]
+    [HttpGet("whoami")]
+    public IActionResult WhoAmI()
+    {
+        return Ok(new
+        {
+            IsAuthenticated = User.Identity?.IsAuthenticated,
+            Name = User.Identity?.Name,
+            Claims = User.Claims.Select(c => new
+            {
+                c.Type,
+                c.Value
+            })
+        });
+    }
 }

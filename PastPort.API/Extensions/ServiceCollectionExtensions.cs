@@ -73,7 +73,24 @@ public static class ServiceCollectionExtensions
                 ValidateIssuerSigningKey = true,
                 ValidIssuer = jwtSettingsSection["Issuer"],
                 ValidAudience = jwtSettingsSection["Audience"],
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey))
+                IssuerSigningKey = new SymmetricSecurityKey(
+                    Encoding.UTF8.GetBytes(secretKey))
+            };
+
+            options.Events = new JwtBearerEvents
+            {
+                OnAuthenticationFailed = context =>
+                {
+                    Console.WriteLine("AUTH FAILED:");
+                    Console.WriteLine(context.Exception.ToString());
+                    return Task.CompletedTask;
+                },
+
+                OnTokenValidated = context =>
+                {
+                    Console.WriteLine("TOKEN VALIDATED");
+                    return Task.CompletedTask;
+                }
             };
         })
         .AddGoogle(options =>

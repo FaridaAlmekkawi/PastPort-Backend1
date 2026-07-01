@@ -91,7 +91,6 @@ public class VrEnvironmentController : ControllerBase
         var userId = CurrentUserId();
 
         // 1) جيب الـ session من الـ DB
-        
         var session = await _context.VrSessions
             .FirstOrDefaultAsync(s =>
                 s.SessionId == sessionId &&
@@ -125,15 +124,19 @@ public class VrEnvironmentController : ControllerBase
 
         // 4) مش موجود → اطلب من السيرفر الخارجي (~6 دقايق)
         _logger.LogInformation(
-            "Scene cache MISS, generating: {Civ} {Year}",
-            session.Civilization, session.YearRange);
+            "Scene cache MISS, generating: {Civ}",
+            session.Civilization);
 
         try
         {
+            var experience = await _context.UserExperiences
+                .FirstOrDefaultAsync(ue => ue.VrSessionId == session.SessionId);
+            var goal = MapGoal(experience?.Goal);
+
             var scene = await _vrService.GenerateSceneAsync(
                 session.Civilization,
-                session.YearRange,
                 session.LocationOldName,
+                goal,
                 session.RoleOrName);
 
             // 5) خزّن في الـ cache
@@ -374,6 +377,22 @@ public class VrEnvironmentController : ControllerBase
     private string CurrentUserId()
         => User.FindFirstValue(ClaimTypes.NameIdentifier)
            ?? throw new UnauthorizedAccessException("User identity not found.");
+
+    private static string MapGoal(string? inputGoal)
+    {
+        if (string.IsNullOrWhiteSpace(inputGoal))
+            return "Educational";
+
+        var normalized = inputGoal.Trim().ToLowerInvariant();
+        if (normalized.Contains("edu") || normalized.Contains("learn") || normalized.Contains("study"))
+            return "Educational";
+        if (normalized.Contains("explor") || normalized.Contains("find") || normalized.Contains("search"))
+            return "Exploratory";
+        if (normalized.Contains("cultur") || normalized.Contains("tradition") || normalized.Contains("art") || normalized.Contains("custom"))
+            return "Cultural";
+
+        return "Educational";
+    }
 
     private async Task<string> SaveGlbAsync(byte[] fileBytes, string fileName)
     {

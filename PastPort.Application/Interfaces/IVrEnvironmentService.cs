@@ -1,4 +1,4 @@
-﻿using PastPort.Application.DTOs.Response;
+using PastPort.Application.DTOs.Response;
 
 namespace PastPort.Application.Interfaces;
 
@@ -8,8 +8,8 @@ public interface IVrEnvironmentService
 
     Task<SceneGenerationResponseDto> GenerateSceneAsync(
         string civilization,
-        string yearRange,
         string locationOldName,
+        string goal,
         string? roleOrName);
 
     Task<Stream> GenerateAssetAsync(

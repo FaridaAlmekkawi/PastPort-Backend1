@@ -14,6 +14,7 @@ public class ScenesController(ISceneService sceneService, ILogger<ScenesControll
     /// <summary>
     /// Get all historical scenes
     /// </summary>
+    [AllowAnonymous]
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAllScenes()
