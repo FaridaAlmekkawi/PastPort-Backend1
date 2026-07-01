@@ -44,45 +44,6 @@ public class VrEnvironmentController : ControllerBase
     }
 
     // ============================================================
-    // Flutter بيستدعي ده أول حاجة — يرجع sessionId
-    // ============================================================
-    [HttpPost("session")]
-    public async Task<IActionResult> StartSession([FromBody] StartVrSessionRequest request)
-    {
-        var userId = CurrentUserId();
-        var sessionId = Guid.NewGuid().ToString();
-
-        var session = new VrSession
-        {
-            Id = Guid.NewGuid(),
-            SessionId = sessionId,
-            UserId = userId,
-            Status = VrSessionStatus.Pending,
-            Civilization = request.Civilization,
-            YearRange = request.YearRange,
-            LocationOldName = request.LocationOldName,
-            RoleOrName = request.RoleOrName,
-            CreatedAt = DateTime.UtcNow,
-            ExpiresAt = DateTime.UtcNow.AddHours(4)
-        };
-
-        // خزّن السيشن مؤقتًا في الـ DB
-        // (لو عندك Redis ممكن تخزنه هناك بدل الـ DB)
-        _context.VrSessions.Add(session);
-        await _context.SaveChangesAsync();
-
-        _logger.LogInformation(
-            "VR Session started: {SessionId} | Civ: {Civ}",
-            sessionId, request.Civilization);
-
-        return Ok(new
-        {
-            success = true,
-            data = new { sessionId }
-        });
-    }
-
-    // ============================================================
     // Unity بيستدعي ده بالـ sessionId — بيجيب الـ scene
     // ============================================================
     [HttpGet("scene/{sessionId}")]
@@ -138,6 +99,17 @@ public class VrEnvironmentController : ControllerBase
                 session.LocationOldName,
                 goal,
                 session.RoleOrName);
+
+            // Update YearRange dynamically from AI response
+            session.YearRange = scene.WorldContext.YearRange;
+            _context.Entry(session).Property(s => s.YearRange).IsModified = true;
+
+            if (experience != null)
+            {
+                experience.YearRange = scene.WorldContext.YearRange;
+                _context.Entry(experience).Property(ue => ue.YearRange).IsModified = true;
+            }
+            await _context.SaveChangesAsync();
 
             // 5) خزّن في الـ cache
             var sceneJson = JsonSerializer.Serialize(scene);
@@ -406,13 +378,3 @@ public class VrEnvironmentController : ControllerBase
         return await _fileStorageService.UploadFileAsync(formFile, "vr-assets");
     }
 }
-
-// Request DTOs (في نفس الملف أو في Application/DTOs/Request)
-public class StartVrSessionRequest
-{
-    public string Civilization { get; set; } = string.Empty;
-    public string YearRange { get; set; } = string.Empty;
-    public string LocationOldName { get; set; } = string.Empty;
-    public string? RoleOrName { get; set; }
-}
-

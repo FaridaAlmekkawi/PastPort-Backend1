@@ -163,10 +163,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPaymentService, PayPalService>();
         var awsOptions = new AWSOptions
         {
-            Region = RegionEndpoint.GetBySystemName(configuration["AWS:Region"]),
+            Region = RegionEndpoint.GetBySystemName(configuration["AWS:Region"] ?? "eu-west-1"),
             Credentials = new BasicAWSCredentials(
-                configuration["AWS:AccessKey"],
-                configuration["AWS:SecretKey"])
+                configuration["AWS:AccessKey"] ?? "",
+                configuration["AWS:SecretKey"] ?? "")
         };
         services.AddDefaultAWSOptions(awsOptions);
         services.AddAWSService<IAmazonS3>();

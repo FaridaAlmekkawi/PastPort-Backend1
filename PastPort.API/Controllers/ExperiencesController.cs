@@ -30,7 +30,7 @@ public class ExperiencesController(ApplicationDbContext context) : ControllerBas
             UserId = UserId,
             Status = VrSessionStatus.Pending,
             Civilization = request.Civilization,
-            YearRange = request.YearRange,
+            YearRange = string.Empty,
             LocationOldName = request.LocationOldName,
             RoleOrName = request.RoleOrName,
             CreatedAt = DateTime.UtcNow,
@@ -43,7 +43,7 @@ public class ExperiencesController(ApplicationDbContext context) : ControllerBas
             UserId = UserId,
             SceneId = request.SceneId,
             Civilization = request.Civilization,
-            YearRange = request.YearRange,
+            YearRange = string.Empty,
             LocationOldName = request.LocationOldName,
             RoleOrName = request.RoleOrName,
             Goal = request.Goal,
@@ -145,7 +145,6 @@ public class ExperiencesController(ApplicationDbContext context) : ControllerBas
 public record StartExperienceRequest(
     Guid? SceneId,
     string Civilization,
-    string YearRange,
     string LocationOldName,
     string? RoleOrName,
     string Goal);
