@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using PastPort.Infrastructure.Data;
 
@@ -11,9 +12,11 @@ using PastPort.Infrastructure.Data;
 namespace PastPort.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260701151349_AddGoalToVrSessionAndSceneCache")]
+    partial class AddGoalToVrSessionAndSceneCache
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -986,9 +989,7 @@ namespace PastPort.Infrastructure.Migrations
 
                     b.Property<string>("Goal")
                         .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("nvarchar(max)")
-                        .HasDefaultValue("Educational");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("LocationOldName")
                         .IsRequired()
@@ -1228,9 +1229,7 @@ namespace PastPort.Infrastructure.Migrations
 
                     b.Property<string>("Goal")
                         .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("nvarchar(max)")
-                        .HasDefaultValue("Educational");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("LastHeartbeat")
                         .HasColumnType("datetime2");

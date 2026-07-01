@@ -32,6 +32,7 @@ public class ExperiencesController(ApplicationDbContext context) : ControllerBas
             Civilization = request.Civilization,
             YearRange = string.Empty,
             LocationOldName = request.LocationOldName,
+            Goal = MapGoal(request.Goal),
             RoleOrName = request.RoleOrName,
             CreatedAt = DateTime.UtcNow,
             ExpiresAt = DateTime.UtcNow.AddHours(4)
@@ -46,7 +47,7 @@ public class ExperiencesController(ApplicationDbContext context) : ControllerBas
             YearRange = string.Empty,
             LocationOldName = request.LocationOldName,
             RoleOrName = request.RoleOrName,
-            Goal = request.Goal,
+            Goal = MapGoal(request.Goal),
             VrSessionId = vrSessionId,
             Status = ExperienceStatus.Started,
             StartedAt = DateTime.UtcNow,
@@ -140,6 +141,22 @@ public class ExperiencesController(ApplicationDbContext context) : ControllerBas
         experience.StartedAt,
         experience.CompletedAt,
         experience.CreatedAt);
+
+    private static string MapGoal(string? inputGoal)
+    {
+        if (string.IsNullOrWhiteSpace(inputGoal))
+            return "Educational";
+
+        var normalized = inputGoal.Trim().ToLowerInvariant();
+        if (normalized.Contains("edu") || normalized.Contains("learn") || normalized.Contains("study"))
+            return "Educational";
+        if (normalized.Contains("explor") || normalized.Contains("find") || normalized.Contains("search"))
+            return "Exploratory";
+        if (normalized.Contains("cultur") || normalized.Contains("tradition") || normalized.Contains("art") || normalized.Contains("custom"))
+            return "Cultural";
+
+        return "Educational";
+    }
 }
 
 public record StartExperienceRequest(

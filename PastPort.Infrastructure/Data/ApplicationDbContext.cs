@@ -49,6 +49,16 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         builder.Entity<Asset>()
             .HasIndex(a => a.SourcePromptHash);
 
+        builder.Entity<SceneCache>(e =>
+        {
+            e.Property(s => s.Goal).HasDefaultValue("Educational");
+        });
+
+        builder.Entity<VrSession>(e =>
+        {
+            e.Property(s => s.Goal).HasDefaultValue("Educational");
+        });
+
         builder.Entity<RefreshToken>()
             .HasIndex(rt => rt.Token)
             .IsUnique();

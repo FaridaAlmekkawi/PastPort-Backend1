@@ -60,12 +60,20 @@ public class VrEnvironmentController : ControllerBase
 
         if (session == null)
             return NotFound(new { error = "Session not found or expired" });
+        var experience = await _context.UserExperiences
+            .FirstOrDefaultAsync(ue => ue.VrSessionId == session.SessionId);
+        var goal = MapGoal(!string.IsNullOrWhiteSpace(session.Goal) ? session.Goal : experience?.Goal);
+        if (session.Goal != goal)
+        {
+            session.Goal = goal;
+            _context.Entry(session).Property(s => s.Goal).IsModified = true;
+            await _context.SaveChangesAsync();
+        }
 
-        // 2) احسب الـ cache key
         var cacheKey = ComputeCacheKey(
             session.Civilization,
-            session.YearRange,
             session.LocationOldName,
+            goal,
             session.RoleOrName);
 
         // 3) دوّر في الـ cache الأول
@@ -90,10 +98,6 @@ public class VrEnvironmentController : ControllerBase
 
         try
         {
-            var experience = await _context.UserExperiences
-                .FirstOrDefaultAsync(ue => ue.VrSessionId == session.SessionId);
-            var goal = MapGoal(experience?.Goal);
-
             var scene = await _vrService.GenerateSceneAsync(
                 session.Civilization,
                 session.LocationOldName,
@@ -120,6 +124,7 @@ public class VrEnvironmentController : ControllerBase
                 Civilization = session.Civilization,
                 YearRange = session.YearRange,
                 LocationOldName = session.LocationOldName,
+                Goal = goal,
                 RoleOrName = session.RoleOrName,
                 SceneJson = sceneJson,
                 CreatedAt = DateTime.UtcNow,
@@ -324,11 +329,11 @@ public class VrEnvironmentController : ControllerBase
 
     private static string ComputeCacheKey(
         string civilization,
-        string yearRange,
         string locationOldName,
+        string goal,
         string? roleOrName)
     {
-        var raw = $"{civilization}|{yearRange}|{locationOldName}|{roleOrName ?? ""}".ToLowerInvariant();
+        var raw = $"{civilization}|{locationOldName}|{goal}|{roleOrName ?? ""}".ToLowerInvariant();
         return ComputeHash(raw);
     }
 
@@ -378,3 +383,4 @@ public class VrEnvironmentController : ControllerBase
         return await _fileStorageService.UploadFileAsync(formFile, "vr-assets");
     }
 }
+

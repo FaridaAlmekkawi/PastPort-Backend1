@@ -15,6 +15,7 @@ public class VrSession
     public string Civilization { get; set; } = string.Empty;
     public string YearRange { get; set; } = string.Empty;
     public string LocationOldName { get; set; } = string.Empty;
+    public string Goal { get; set; } = "Educational";
     public string? RoleOrName { get; set; }
     public DateTime ExpiresAt { get; set; }
 

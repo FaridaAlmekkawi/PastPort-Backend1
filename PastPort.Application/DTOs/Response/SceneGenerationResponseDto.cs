@@ -23,6 +23,18 @@ public class NpcObjectDto : SceneObjectDto
     public string Role { get; set; } = string.Empty;
 }
 
+public class ScenePointDto
+{
+    public string PointId { get; set; } = string.Empty;
+    public string TargetObjectId { get; set; } = string.Empty;
+    public string TargetCategory { get; set; } = string.Empty;
+    public bool IsLandmark { get; set; }
+    public Vector3Dto Position { get; set; } = new();
+    public string Title { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public bool Completed { get; set; }
+}
+
 public class WorldContextDto
 {
     public string Civilization { get; set; } = string.Empty;
@@ -63,4 +75,5 @@ public class SceneGenerationResponseDto
     public LightingDto Lighting { get; set; } = new();
     public SkyboxDto Skybox { get; set; } = new();
     public string HistoricalNotes { get; set; } = string.Empty;
+    public List<ScenePointDto> Points { get; set; } = new();
 }
