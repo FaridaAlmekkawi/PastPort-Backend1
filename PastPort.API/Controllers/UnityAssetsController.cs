@@ -84,6 +84,9 @@ public class UnityAssetsController(
             return Ok(new
             {
                 success = true,
+                downloadAllZipUrl = Url.Action(
+                    nameof(DownloadSceneAssetsZip),
+                    values: new { sceneId }),
                 data = assets.Select(a => new
                 {
                     id = a.Id,
@@ -91,6 +94,9 @@ public class UnityAssetsController(
                     fileName = a.FileName,
                     type = a.Type.ToString(),
                     fileUrl = a.FileUrl,
+                    downloadUrl = Url.Action(
+                        nameof(DownloadAsset),
+                        values: new { assetId = a.Id }),
                     fileSize = a.FileSize,
                     fileHash = a.FileHash,
                     version = a.Version
@@ -145,7 +151,7 @@ public class UnityAssetsController(
     /// Unity/Postman استخدم: GET /api/unityassets/scene/sceneId/download-zip
     /// </summary>
     [HttpGet("scene/{sceneId}/download-zip")]
-    [Authorize]
+    [AllowAnonymous]
     public async Task<IActionResult> DownloadSceneAssetsZip(Guid sceneId)
     {
         try
