@@ -357,7 +357,7 @@ public class VrEnvironmentController : ControllerBase
 
         var scene = new SceneGenerationResponseDto
         {
-            Source = "manual",
+            Source = "manual_fallback_layout",
             SceneType = "manual_asset_scene",
             TimeOfDay = "morning",
             Weather = "clear_sky",
@@ -445,8 +445,93 @@ public class VrEnvironmentController : ControllerBase
             }
         }
 
+        var aiLayoutApplied = await TryApplyAiLayoutAsync(scene, session, goal);
+        if (aiLayoutApplied)
+            scene.Source = "manual_ai_layout";
+
         AddManualPoints(scene, goal);
         return scene;
+    }
+
+    private async Task<bool> TryApplyAiLayoutAsync(
+        SceneGenerationResponseDto scene,
+        VrSession session,
+        string goal)
+    {
+        var layoutAssets = EnumerateSceneObjects(scene)
+            .Select(item => new ManualSceneLayoutAssetDto
+            {
+                AssetId = item.Object.AssetId ?? item.Object.ObjectId,
+                Name = item.Object.Name,
+                Category = item.Category,
+                FileName = item.Object.FileName,
+                FileUrl = item.Object.FileUrl
+            })
+            .ToList();
+
+        if (layoutAssets.Count == 0)
+            return false;
+
+        var request = new ManualSceneLayoutRequestDto
+        {
+            Civilization = session.Civilization,
+            YearRange = session.YearRange,
+            LocationOldName = session.LocationOldName,
+            Goal = goal,
+            RoleOrName = session.RoleOrName,
+            Assets = layoutAssets
+        };
+
+        ManualSceneLayoutResponseDto layout;
+        try
+        {
+            layout = await _vrService.GenerateManualLayoutAsync(request);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Manual AI layout failed; using deterministic fallback layout.");
+            return false;
+        }
+
+        var objectsByAssetId = EnumerateSceneObjects(scene)
+            .GroupBy(item => item.Object.AssetId ?? item.Object.ObjectId)
+            .ToDictionary(group => group.Key, group => group.First().Object);
+
+        var applied = 0;
+        foreach (var item in layout.Items)
+        {
+            if (string.IsNullOrWhiteSpace(item.AssetId) ||
+                !objectsByAssetId.TryGetValue(item.AssetId, out var sceneObject))
+            {
+                continue;
+            }
+
+            if (item.Position != null)
+                sceneObject.Position = item.Position;
+            if (item.Rotation != null)
+                sceneObject.Rotation = item.Rotation;
+            if (item.Scale != null)
+                sceneObject.Scale = item.Scale;
+
+            applied++;
+        }
+
+        return applied > 0;
+    }
+
+    private static IEnumerable<(string Category, SceneObjectDto Object)> EnumerateSceneObjects(
+        SceneGenerationResponseDto scene)
+    {
+        foreach (var item in scene.Structures)
+            yield return ("structures", item);
+        foreach (var item in scene.Props)
+            yield return ("props", item);
+        foreach (var item in scene.GroundDetails)
+            yield return ("ground_details", item);
+        foreach (var item in scene.Vegetation)
+            yield return ("vegetation", item);
+        foreach (var item in scene.Npcs)
+            yield return ("npcs", item);
     }
 
     private static string ClassifyManualAsset(Asset asset)

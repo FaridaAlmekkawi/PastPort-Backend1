@@ -12,6 +12,10 @@ public interface IVrEnvironmentService
         string goal,
         string? roleOrName);
 
+    Task<ManualSceneLayoutResponseDto> GenerateManualLayoutAsync(
+        ManualSceneLayoutRequestDto request,
+        CancellationToken cancellationToken = default);
+
     Task<Stream> GenerateAssetAsync(
         string prompt,
         bool isNpc,

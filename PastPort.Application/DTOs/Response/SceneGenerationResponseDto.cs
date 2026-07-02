@@ -81,3 +81,36 @@ public class SceneGenerationResponseDto
     public string HistoricalNotes { get; set; } = string.Empty;
     public List<ScenePointDto> Points { get; set; } = new();
 }
+
+public class ManualSceneLayoutRequestDto
+{
+    public string Civilization { get; set; } = string.Empty;
+    public string YearRange { get; set; } = string.Empty;
+    public string LocationOldName { get; set; } = string.Empty;
+    public string Goal { get; set; } = string.Empty;
+    public string? RoleOrName { get; set; }
+    public List<ManualSceneLayoutAssetDto> Assets { get; set; } = new();
+}
+
+public class ManualSceneLayoutAssetDto
+{
+    public string AssetId { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Category { get; set; } = string.Empty;
+    public string? FileName { get; set; }
+    public string? FileUrl { get; set; }
+}
+
+public class ManualSceneLayoutResponseDto
+{
+    public string Source { get; set; } = "ai_layout";
+    public List<ManualSceneLayoutItemDto> Items { get; set; } = new();
+}
+
+public class ManualSceneLayoutItemDto
+{
+    public string AssetId { get; set; } = string.Empty;
+    public Vector3Dto? Position { get; set; }
+    public Vector3Dto? Rotation { get; set; }
+    public Vector3Dto? Scale { get; set; }
+}

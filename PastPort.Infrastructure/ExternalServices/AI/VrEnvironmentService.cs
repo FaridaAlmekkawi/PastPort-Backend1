@@ -78,6 +78,34 @@ public class VrEnvironmentService : IVrEnvironmentService
         return result;
     }
 
+    public async Task<ManualSceneLayoutResponseDto> GenerateManualLayoutAsync(
+        ManualSceneLayoutRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation(
+            "Requesting manual scene layout: {Civ}, assets={AssetCount}",
+            request.Civilization,
+            request.Assets.Count);
+
+        var response = await _httpClient.PostAsJsonAsync("/layout", request, _jsonOptions, cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync(cancellationToken);
+            _logger.LogError("Manual layout generation failed {Status}: {Error}", response.StatusCode, error);
+            throw new Exception($"Manual layout generation failed: {response.StatusCode}");
+        }
+
+        var result = await response.Content.ReadFromJsonAsync<ManualSceneLayoutResponseDto>(
+            _jsonOptions,
+            cancellationToken);
+
+        if (result == null)
+            throw new Exception("Manual layout generation returned empty response");
+
+        return result;
+    }
+
     public async Task<Stream> GenerateAssetAsync(
         string prompt,
         bool isNpc,
