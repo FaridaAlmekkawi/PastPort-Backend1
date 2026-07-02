@@ -1,5 +1,6 @@
 // PastPort.API/Controllers/NpcSessionController.cs
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PastPort.Application.Interfaces;
@@ -10,9 +11,10 @@ namespace PastPort.API.Controllers;
 // ── Request / Response DTOs ───────────────────────────────────────────────────
 
 public sealed record StartSessionRequest(
-    [Required, MinLength(1)] string YearRange,
     [Required, MinLength(1)] string LocationOldName,
-    [Required, MinLength(1)] string Civilization
+    [Required, MinLength(1)] string Civilization,
+    JsonElement? Year = null,
+    string? YearRange = null
 );
 
 public sealed record StartSessionResponse(
@@ -48,9 +50,9 @@ public sealed class NpcSessionController(
         var sessionId = Guid.NewGuid().ToString("N"); // compact, no hyphens
         var expiresAt = DateTime.UtcNow.Add(SessionTtl);
         var sessionData = new NpcSessionData(
-            YearRange: request.YearRange,
             LocationOldName: request.LocationOldName,
             Civilization: request.Civilization,
+            Year: request.Year,
             CreatedAt: DateTime.UtcNow);
 
         cache.Set(BuildCacheKey(sessionId), sessionData, SessionTtl);
@@ -80,7 +82,7 @@ public sealed class NpcSessionController(
             {
                 sessionId,
                 civilization = data.Civilization,
-                yearRange = data.YearRange,
+                year = data.Year,
                 locationOldName = data.LocationOldName,
                 createdAt = data.CreatedAt
             });

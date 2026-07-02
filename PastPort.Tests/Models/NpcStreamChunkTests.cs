@@ -13,11 +13,11 @@ public sealed class NpcStreamChunkTests
     public void NpcSessionData_Properties_AreAccessible()
     {
         var now = DateTime.UtcNow;
-        var data = new NpcSessionData("500–600 AD", "Alexandria", "Byzantine", now);
+        var data = new NpcSessionData("Alexandria", "Byzantine", null, now);
 
-        data.YearRange.Should().Be("500–600 AD");
         data.LocationOldName.Should().Be("Alexandria");
         data.Civilization.Should().Be("Byzantine");
+        data.Year.Should().BeNull();
         data.CreatedAt.Should().Be(now);
     }
 
@@ -25,8 +25,8 @@ public sealed class NpcStreamChunkTests
     public void NpcSessionData_RecordEquality_WorksByValue()
     {
         var now = DateTime.UtcNow;
-        var a = new NpcSessionData("Y", "L", "C", now);
-        var b = new NpcSessionData("Y", "L", "C", now);
+        var a = new NpcSessionData("L", "C", null, now);
+        var b = new NpcSessionData("L", "C", null, now);
 
         a.Should().Be(b);
     }
@@ -34,7 +34,7 @@ public sealed class NpcStreamChunkTests
     [Fact]
     public void NpcSessionData_WithExpression_CreatesNewInstance()
     {
-        var original = new NpcSessionData("Y", "L", "C", DateTime.UtcNow);
+        var original = new NpcSessionData("L", "C", null, DateTime.UtcNow);
         var modified = original with { Civilization = "Roman" };
 
         modified.Civilization.Should().Be("Roman");

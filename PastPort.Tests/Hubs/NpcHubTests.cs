@@ -60,7 +60,7 @@ public sealed class NpcHubTests
         // Arrange
         var sessionId = "good-session";
         var cacheKey = NpcSessionController.BuildCacheKey(sessionId);
-        var sessionData = new NpcSessionData("1900-1920", "Cairo", "Egyptian", DateTime.UtcNow);
+        var sessionData = new NpcSessionData("Cairo", "Egyptian", null, DateTime.UtcNow);
         
         _cache.Setup(c => c.TryGetValue(cacheKey, out sessionData)).Returns(true);
         

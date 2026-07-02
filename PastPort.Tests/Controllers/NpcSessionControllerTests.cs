@@ -25,7 +25,7 @@ public sealed class NpcSessionControllerTests
     public void StartSession_ReturnsCreatedWithSessionId()
     {
         // Arrange
-        var request = new StartSessionRequest("1900-1950", "Old Cairo", "Islamic");
+        var request = new StartSessionRequest("Old Cairo", "Islamic");
 
         // Act
         var result = _sut.StartSession(request);
@@ -40,9 +40,9 @@ public sealed class NpcSessionControllerTests
         _cache.Verify(c => c.Set(
             It.Is<string>(k => k.StartsWith("npc:session:")),
             It.Is<NpcSessionData>(d => 
-                d.YearRange == request.YearRange && 
                 d.LocationOldName == request.LocationOldName && 
-                d.Civilization == request.Civilization),
+                d.Civilization == request.Civilization &&
+                d.Year == null),
             It.IsAny<TimeSpan>()), Times.Once);
     }
 
@@ -52,7 +52,7 @@ public sealed class NpcSessionControllerTests
         // Arrange
         var sessionId = "testSession";
         var cacheKey = NpcSessionController.BuildCacheKey(sessionId);
-        var sessionData = new NpcSessionData("1900", "Place", "Civ", DateTime.UtcNow);
+        var sessionData = new NpcSessionData("Place", "Civ", null, DateTime.UtcNow);
         
         _cache.Setup(c => c.TryGetValue(cacheKey, out sessionData)).Returns(true);
 

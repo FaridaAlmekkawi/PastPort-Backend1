@@ -121,17 +121,6 @@ public class NpcAIServiceTests
     }
 
     [Theory]
-    [InlineData("300 BC - 30 BC", 300, 30)]
-    [InlineData("2550, 2580", 2550, 2580)]
-    [InlineData("1900", 1900, 1900)]
-    public void ParseYearRange_ExtractsEngineRange(string input, int start, int end)
-    {
-        var result = NpcAIService.ParseYearRange(input);
-
-        result.Should().Equal(start, end);
-    }
-
-    [Theory]
     [InlineData("wss://gizmo-battering-moaning.ngrok-free.dev", "wss://gizmo-battering-moaning.ngrok-free.dev/ws/npc")]
     [InlineData("wss://gizmo-battering-moaning.ngrok-free.dev/", "wss://gizmo-battering-moaning.ngrok-free.dev/ws/npc")]
     [InlineData("wss://gizmo-battering-moaning.ngrok-free.dev/ws/npc", "wss://gizmo-battering-moaning.ngrok-free.dev/ws/npc")]

@@ -1,20 +1,22 @@
-﻿// PastPort.Application/Models/Npc/NpcSessionData.cs
+// PastPort.Application/Models/Npc/NpcSessionData.cs
+using System.Text.Json;
+
 namespace PastPort.Application.Models.Npc;
 
 /// <summary>
 /// Stored in IMemoryCache keyed by sessionId.
-/// Intentionally a sealed record — immutable after creation.
+/// Intentionally a sealed record - immutable after creation.
 /// </summary>
 public sealed record NpcSessionData(
-    string YearRange,
     string LocationOldName,
     string Civilization,
+    JsonElement? Year,
     DateTime CreatedAt
 );
 
 /// <summary>
 /// A single streamed chunk from the LLM WebSocket.
-/// Discriminated by ChunkType — hub pattern-matches on this.
+/// Discriminated by ChunkType - hub pattern-matches on this.
 /// </summary>
 public abstract record NpcStreamChunk;
 

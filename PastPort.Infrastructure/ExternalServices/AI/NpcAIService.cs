@@ -3,7 +3,6 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using PastPort.Application.Interfaces;
@@ -38,10 +37,12 @@ file sealed class LlmConfigPayload
 
 file sealed class LlmWorld
 {
-    [JsonPropertyName("year_range")] public int[] YearRange { get; init; } = [];
     [JsonPropertyName("location_old_name")] public string LocationOldName { get; init; } = "";
     [JsonPropertyName("civilization")] public string Civilization { get; init; } = "";
     [JsonPropertyName("role_or_name")] public string RoleOrName { get; init; } = "";
+    [JsonPropertyName("year")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? Year { get; init; }
 }
 
 file sealed class LlmTextFrame
@@ -128,10 +129,10 @@ public sealed class NpcAIService : INpcAIService
             {
                 World = new LlmWorld
                 {
-                    YearRange = ParseYearRange(sessionData.YearRange),
                     LocationOldName = sessionData.LocationOldName,
                     Civilization = sessionData.Civilization,
-                    RoleOrName = roleOrName
+                    RoleOrName = roleOrName,
+                    Year = sessionData.Year
                 }
             };
 
@@ -270,18 +271,6 @@ public sealed class NpcAIService : INpcAIService
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
-
-    internal static int[] ParseYearRange(string yearRange)
-    {
-        var matches = Regex.Matches(yearRange, @"\d+");
-
-        return matches.Count switch
-        {
-            0 => [0, 0],
-            1 => [int.Parse(matches[0].Value), int.Parse(matches[0].Value)],
-            _ => [int.Parse(matches[0].Value), int.Parse(matches[1].Value)]
-        };
-    }
 
     internal static string NormalizeWebSocketUrl(string webSocketUrl)
     {
