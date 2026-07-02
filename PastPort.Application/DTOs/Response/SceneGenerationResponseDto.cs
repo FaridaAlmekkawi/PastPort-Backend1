@@ -10,7 +10,10 @@ public class Vector3Dto
 public class SceneObjectDto
 {
     public string ObjectId { get; set; } = string.Empty;
+    public string? AssetId { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string? FileName { get; set; }
+    public string? FileUrl { get; set; }
     public string TripoPrompt { get; set; } = string.Empty;
     public Vector3Dto Position { get; set; } = new();
     public Vector3Dto Rotation { get; set; } = new();
@@ -61,6 +64,7 @@ public class SkyboxDto
 
 public class SceneGenerationResponseDto
 {
+    public string Source { get; set; } = "generative";
     public string SceneType { get; set; } = string.Empty;
     public string TimeOfDay { get; set; } = string.Empty;
     public string Weather { get; set; } = string.Empty;
