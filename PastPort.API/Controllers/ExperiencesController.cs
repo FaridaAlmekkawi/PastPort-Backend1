@@ -164,7 +164,7 @@ public record StartExperienceRequest(
     string Civilization,
     string LocationOldName,
     string? RoleOrName,
-    string Goal);
+    string? Goal);
 
 public record ExperienceResponse(
     Guid Id,
