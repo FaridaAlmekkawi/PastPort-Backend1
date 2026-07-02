@@ -187,7 +187,8 @@ public static class ServiceCollectionExtensions
 
         services.AddHttpClient<IVrEnvironmentService, VrEnvironmentService>(client =>
         {
-            client.Timeout = TimeSpan.FromMinutes(8);
+            var timeoutMinutes = configuration.GetValue<int?>("VrGenerator:RequestTimeoutMinutes") ?? 8;
+            client.Timeout = TimeSpan.FromMinutes(Math.Max(1, timeoutMinutes));
         });
         // Settings
         services.Configure<EmailSettings>(configuration.GetSection("EmailSettings"));

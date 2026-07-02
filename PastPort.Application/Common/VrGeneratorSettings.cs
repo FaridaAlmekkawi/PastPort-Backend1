@@ -10,5 +10,6 @@ using System.Threading.Tasks;
     public class VrGeneratorSettings
     {
         public string BaseUrl { get; set; } = string.Empty;
+        public int RequestTimeoutMinutes { get; set; } = 8;
     }
 
