@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using PastPort.Application.Interfaces;
 using PastPort.Domain.Interfaces;
+using System.IO.Compression;
 
 namespace PastPort.API.Controllers;
 
@@ -140,6 +141,67 @@ public class UnityAssetsController(
     }
 
     /// <summary>
+    /// تحميل كل Assets الخاصة بـ Scene في ملف ZIP واحد
+    /// Unity/Postman استخدم: GET /api/unityassets/scene/sceneId/download-zip
+    /// </summary>
+    [HttpGet("scene/{sceneId}/download-zip")]
+    [Authorize]
+    public async Task<IActionResult> DownloadSceneAssetsZip(Guid sceneId)
+    {
+        try
+        {
+            var assets = await assetRepository.GetAssetsBySceneIdAsync(sceneId);
+            if (assets.Count == 0)
+                return NotFound(new { error = "No assets found for this scene" });
+
+            var zipStream = new MemoryStream();
+            using (var archive = new ZipArchive(zipStream, ZipArchiveMode.Create, leaveOpen: true))
+            {
+                foreach (var asset in assets)
+                {
+                    try
+                    {
+                        if (!fileStorageService.FileExists(asset.FileUrl))
+                        {
+                            logger.LogWarning("Skipping missing scene asset {AssetId}: {FileUrl}", asset.Id, asset.FileUrl);
+                            continue;
+                        }
+
+                        var fileBytes = await fileStorageService.GetFileAsync(asset.FileUrl);
+                        var entryName = GetSafeZipEntryName(asset.FileName);
+                        var entry = archive.CreateEntry(entryName, CompressionLevel.Fastest);
+
+                        await using var entryStream = entry.Open();
+                        await entryStream.WriteAsync(fileBytes);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning(ex, "Skipping failed scene asset {AssetId}", asset.Id);
+                    }
+                }
+            }
+
+            if (zipStream.Length == 0)
+            {
+                await zipStream.DisposeAsync();
+                return NotFound(new { error = "No downloadable files were found for this scene" });
+            }
+
+            zipStream.Position = 0;
+            var zipFileName = $"scene-{sceneId}-assets.zip";
+
+            logger.LogInformation("Scene assets ZIP downloaded: {SceneId}, assets={Count}", sceneId, assets.Count);
+
+            return File(zipStream, "application/zip", zipFileName);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error creating ZIP for scene assets {SceneId}", sceneId);
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// التحقق من وجود Asset وحالته
     /// Unity استخدم: POST /api/unityassets/verify
     /// </summary>
@@ -199,6 +261,12 @@ public class UnityAssetsController(
             ".wav" => "audio/wav",
             _ => "application/octet-stream"
         };
+    }
+
+    private static string GetSafeZipEntryName(string fileName)
+    {
+        var safeName = Path.GetFileName(fileName);
+        return string.IsNullOrWhiteSpace(safeName) ? $"{Guid.NewGuid()}.asset" : safeName;
     }
 }
 
